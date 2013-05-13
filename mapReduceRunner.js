@@ -17,9 +17,8 @@ while (running) {
         running = false;
     } else {
         mapReduce();
+        sleep(interval);
     }
-
-    sleep(interval);
 }
 
 print("Exiting");
@@ -56,7 +55,8 @@ function runAction(action) {
     var log = {
         "timestamp": timestamp,
         "action": action,
-        "result": { // can't save the raw result object - private fields introduce recursion..
+        "result": { // can't save the raw result object
+                    // private fields introduce recursion..
             "out": result.result,
             "timeMillis": result.timeMillis,
             "ok": result.ok,
