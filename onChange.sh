@@ -7,7 +7,7 @@ trap "rm $tmpf; exit 1" 2
 while : ; do  
     if [ "$f" -nt "$tmpf" ]; then  
         touch -r "$f" "$tmpf"  
-        "$@"  
+        "$@" &
     fi  
     sleep 2  
 done 
