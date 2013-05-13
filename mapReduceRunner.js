@@ -9,6 +9,7 @@ db.mapreduce.run.update(
     );
 
 print("Running with pid " + pid.toString());
+run("reqsByHour");
 
 while (running) {
     var runningPid = db.mapreduce.run.findOne();
@@ -32,24 +33,49 @@ function mapReduce() {
             || (action.hasOwnProperty("lastrun") && action.hasOwnProperty("interval")
                 && action.lastrun + action.interval < timestamp))
         {
-            action.reset = false;
-            action.lastrun = timestamp;
-            db.mapreduce.save(action);
-            
-            delete action._id;
             runAction(action);
         }
     });
 }
 
+function run(actionName) {
+    var action = db.mapreduce.findOne({"name": actionName});
+    if (action != null) {
+        printjson(runAction(action));
+    }
+}
+
 function runAction(action) {
     var timestamp = new Date().getTime();
+    action.reset = false;
+    action.lastrun = timestamp;
+    db.mapreduce.save(action);
+            
+    delete action._id;
+
+    var options = {};
+    var possibleOptions = ["finalize", "out", "sort", "limit", "query"];
+    for (var i = 0, c = possibleOptions.length; i < c; i++) {
+        var option = possibleOptions[i];
+        if (action.hasOwnProperty(option)) {
+            options[option] = action[option];
+        }
+    }
+
+    if (options.hasOwnProperty("query") && typeof(options.query) === "function") {
+        var data = {};
+        if (action.hasOwnProperty("data") && action.data != null) {
+            data = action.data;
+        }
+
+        options.query = options.query.apply(data, [timestamp]);
+    }
 
     var result = db[action.collection].mapReduce
         (
          action.map, 
          action.reduce, 
-         {"out": action.out}
+         options
         );
 
     var log = {
@@ -65,4 +91,6 @@ function runAction(action) {
     };
     
     db.mapreduce.log.insert(log);
+
+    return log;
 }
