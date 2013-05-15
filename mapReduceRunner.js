@@ -1,6 +1,13 @@
 /*global db, sleep, print, ObjectId, printjson, mapReduce, run, shouldRun, runAction, clearOut */
 /*jslint nomen: true, sloppy: true */
 
+// TODO: clean up
+// TODO: document
+// TODO: move settings to db (providing sane default settings)
+// TODO: perhaps provide string interpolation so debugging statements don't look as ugly
+// TODO: perhaps provide convenience debug(), info(), warning(), error() functions?
+// TODO: error handling
+
 var pid     = new ObjectId(),   // the "pid" of this runner
     running = true,             // when false, we exit
     interval = 1000,            // how many ms we should sleep in between runs
@@ -17,7 +24,7 @@ var loglevels = {
 
 var loglevel = {
     db: loglevels.DEBUG,
-    console: loglevels.WARNING
+    console: loglevels.INFO
 };
 
 db.mapreduce.run.save(
@@ -107,11 +114,33 @@ function run(actionName) {
 
 function extractOptions(action) {
     var options = {},
-        possibleOptions = ["finalize", "out", "sort", "limit", "query"],
+        possibleOptions = ["finalize", "sort", "limit", "query"],
         i,
         c,
         option,
-        previous = {};
+        previous = {},
+        setCustomOut = false;
+
+    if (
+            action.hasOwnProperty("incremental") &&
+            typeof (action.incremental) === "string" &&
+            action.hasOwnProperty("previous") &&
+            typeof (action.previous) !== undefined &&
+            action.previous !== {} &&
+            action.hasOwnProperty("lastrun") &&
+            action.lastrun > 0
+        ) {
+
+        log(loglevels.DEBUG, "Setting default incremental options");
+
+        if (action.hasOwnProperty("out") && typeof (action.out) === "string" && typeof (action.out) !== "object") {
+            options.out = {reduce: action.out};
+            setCustomOut = true;
+        }
+
+        options.query = {};
+        options.query[action.incremental] = {"$gt": action.lastrun};
+    }
 
     for (i = 0, c = possibleOptions.length; i < c; i += 1) {
         option = possibleOptions[i];
@@ -120,7 +149,16 @@ function extractOptions(action) {
         }
     }
 
-    log(loglevels.DEBUG, "Applying options", options);
+    if (action.hasOwnProperty("out") && !setCustomOut) {
+        options.out = action.out;
+    }
+
+    if (!options.hasOwnProperty("out")) {
+        log(loglevels.WARNING, "No output collection/action specified, writing to results." + action.name, action);
+        options.out = {reduce: "results." + action.name};
+    }
+
+    log(loglevels.DEBUG, "Applying options");
 
     if (action.hasOwnProperty("previous") && action.previous !== null) {
         previous = action.previous;
@@ -216,6 +254,9 @@ function runAction(action, type) {
         "timestamp":    timestamp,
         "action":       action,
         "result":       cleanResult
+        // TODO: because the query field might contain fields that start with "$", signifying an operator,
+        // and fields starting with "$" are not allowed in mongo, we can't log the options object as-is.
+        // so, we'll need to find a solution for that.
     };
 
     log(loglevels.INFO, "Finished running " + action.name, logObj);
