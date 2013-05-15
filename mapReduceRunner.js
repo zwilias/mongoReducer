@@ -8,8 +8,7 @@ db.mapreduce.run.update(
         {"upsert": true}
     );
 
-print("Running with pid " + pid.toString());
-run("reqsByHour");
+print(pid.toString() + ": running");
 
 while (running) {
     var runningPid = db.mapreduce.run.findOne();
@@ -22,7 +21,7 @@ while (running) {
     }
 }
 
-print("Exiting");
+print(pid.toString() + ": exiting");
 
 function mapReduce() {
     var actions = db.mapreduce.find();
