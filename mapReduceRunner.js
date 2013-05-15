@@ -18,7 +18,9 @@ while (running) {
         running = false;
         print(pid.toString() + ": exiting - new instance running");
     } else {
+        db.mapreduce.run.update({"_id": "unique"}, {"$set": {"status": "running"}});
         mapReduce();
+        db.mapreduce.run.update({"_id": "unique"}, {"$set": {"status": "sleeping"}});
         sleep(interval);
     }
 }
