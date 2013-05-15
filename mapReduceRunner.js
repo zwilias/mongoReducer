@@ -2,16 +2,15 @@ var pid = ObjectId();
 var running = true;
 var interval = 1000;
 
-db.mapreduce.run.update(
-        {}, 
-        {"pid": pid}, 
-        {"upsert": true}
+db.mapreduce.run.save(
+        {"_id": "unique"}, 
+        {"pid": pid}
     );
 
 print(pid.toString() + ": running");
 
 while (running) {
-    var runningPid = db.mapreduce.run.findOne();
+    var runningPid = db.mapreduce.run.findOne({"_id": "unique"});
 
     if (runningPid == null || pid.toString() != runningPid.pid.toString()) {
         running = false;
