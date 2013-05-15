@@ -46,22 +46,7 @@ function run(actionName) {
     }
 }
 
-function runAction(action, type) {
-    if (typeof(type) === "undefined") {
-        var type = "auto";
-    }
-
-    var timestamp = new Date().getTime();
-
-    update.force = false;
-    update.lastrun = timestamp;
-    update.type = type;
-
-    db.mapreduce.update(
-            {"_id": action._id},
-            {"$set": update}
-        );
-            
+function extractOptions(action) {
     var options = {};
     var possibleOptions = ["finalize", "out", "sort", "limit", "query"];
     for (var i = 0, c = possibleOptions.length; i < c; i++) {
@@ -72,14 +57,25 @@ function runAction(action, type) {
     }
 
     if (options.hasOwnProperty("query") && typeof(options.query) === "function") {
-        var data = {};
-        if (action.hasOwnProperty("data") && action.data != null) {
-            data = action.data;
+        var previous = {};
+        if (action.hasOwnProperty(previous)) {
+            previous = action.previous;
         }
 
-        options.query = options.query.apply(data, [timestamp]);
+        options.query = options.query.apply(action, [previous]);
     }
 
+    return options;
+}
+
+
+function runAction(action, type) {
+    if (typeof(type) === "undefined") {
+        var type = "auto";
+    }
+
+    var options = extractOptions(action);
+   
     var result = db[action.collection].mapReduce
         (
          action.map, 
@@ -87,16 +83,39 @@ function runAction(action, type) {
          options
         );
 
+    var timestamp = new Date().getTime();
+
+    var cleanResult = {
+        "out":          result.result,
+        "timeMillis":   result.timeMillis,
+        "ok":           result.ok,
+        "counts":           result.counts
+    };
+
+    var previous        = {};
+    if (action.hasOwnProperty("previous")) {
+        previous = action.previous;
+    }
+    previous.timestamp  = timestamp;
+    previous.result     = cleanResult;
+
+    var update = {
+        "force":    false,
+        "lastrun":  timestamp,
+        "type":     type,
+        "previous": previous
+    };
+
+    db.mapreduce.update
+        (
+            {"_id":     action._id},
+            {"$set":    update}
+        );
+
     var log = {
-        "timestamp": timestamp,
-        "action": action,
-        "result": { // can't save the raw result object
-                    // private fields introduce recursion..
-            "out": result.result,
-            "timeMillis": result.timeMillis,
-            "ok": result.ok,
-            "counts": result.counts
-        }
+        "timestamp":    timestamp,
+        "action":       action,
+        "result":       cleanResult
     };
     
     db.mapreduce.log.insert(log);
