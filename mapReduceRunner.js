@@ -16,10 +16,11 @@ var pid     = new ObjectId(),   // the "pid" of this runner
 
 
 var loglevels = {
-    DEBUG: 0,
-    INFO: 1,
-    WARNING: 2,
-    ERROR: 3
+    DEBUG: 0,       // things that are really quite redundant to see all the time,
+                    // but are useful when debugging
+    INFO: 1,        // quite useful when you're wondering what's going on
+    WARNING: 2,     // generally used for recoverable things or when exiting
+    ERROR: 3        // when we're broken and need fixing
 };
 
 var loglevel = {
@@ -83,6 +84,17 @@ function mapReduce() {
     });
 }
 
+/**
+ * Determine whether or not a given action should run - this time.
+ *
+ * There are 2 conditions in which an action will (automatically) execute:
+ * - force was set to `true`
+ * - lastrun + interval <= now
+ *
+ * If either or both of the lastrun and interval fields are missing, this action
+ * will not execute. Keep this in mind when adding a new action - the lastrun field
+ * must be set to an integer value, as well as the interval field.
+ */
 function shouldRun(action) {
     var timestamp = new Date().getTime();
 
@@ -100,6 +112,9 @@ function shouldRun(action) {
     return execute;
 }
 
+/**
+ * Convenience function to easily allow to manually run an action - simply specify the name
+ */
 function run(actionName) {
     log(loglevels.INFO, "Trying to run action manually", actionName);
 
@@ -112,6 +127,24 @@ function run(actionName) {
     }
 }
 
+/**
+ * For internal use.
+ *
+ * Tries to generate the needed options for running the actual mapReduce command.
+ *
+ * Some options are always passed through as is:
+ * - finalize
+ * - sort
+ * - limit
+ *
+ * The "out" and "query" options are generally also passed through, but conditions apply.
+ *
+ * The "query" option does not need to be a document; it can also be a function that returns a document
+ * which can be used by the map-reduce functionality to filter the results that will have mapping
+ * applied to.
+ *
+ * // TODO: finish this documentation
+ */
 function extractOptions(action) {
     var options = {},
         possibleOptions = ["finalize", "sort", "limit", "query"],
