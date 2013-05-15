@@ -12,15 +12,17 @@ print(pid.toString() + ": running");
 while (running) {
     var runningPid = db.mapreduce.run.findOne({"_id": "unique"});
 
-    if (runningPid == null || pid.toString() != runningPid.pid.toString()) {
+    if (runningPid == null) {
         running = false;
+        print(pid.toString() + ": exiting - canceled");
+    } else if (pid.toString() != runningPid.pid.toString()) {
+        running = false;
+        print(pid.toString() + ": exiting - new instance running");
     } else {
         mapReduce();
         sleep(interval);
     }
 }
-
-print(pid.toString() + ": exiting");
 
 function mapReduce() {
     var actions = db.mapreduce.find();
