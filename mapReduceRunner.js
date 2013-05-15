@@ -3,15 +3,28 @@
 
 var pid     = new ObjectId(),   // the "pid" of this runner
     running = true,             // when false, we exit
-    interval = 1000,           // how many ms we should sleep in between runs
-    counter = 0,
-    totalcount = 0;                // how many mapReduce actions were executed this run
+    interval = 1000,            // how many ms we should sleep in between runs
+    counter = 0,                // how many mapReduce actions were executed this run
+    totalcount = 0;             // how many mapReduce actions were executed by this instance
+
+
+var loglevels = {
+    DEBUG: 0,
+    INFO: 1,
+    WARNING: 2,
+    ERROR: 3
+};
+
+var loglevel = {
+    db: loglevels.DEBUG,
+    console: loglevels.WARNING
+};
 
 db.mapreduce.run.save(
     {"_id": "unique", "pid": pid}
 );
 
-print(pid.toString() + ": running");
+log(loglevels.INFO, "Starting");
 
 var runningPid = {},
     start = 0,
@@ -22,10 +35,10 @@ while (running) {
 
     if (runningPid === null || !runningPid.hasOwnProperty("pid")) {
         running = false;
-        print(pid.toString() + ": exiting - canceled");
+        log(loglevels.WARNING, "Exiting, canceled");
     } else if (pid.toString() !== runningPid.pid.toString()) {
         running = false;
-        print(pid.toString() + ": exiting - new instance running");
+        log(loglevels.WARNING, "Exiting, new instance started");
     } else {
         db.mapreduce.run.update({"_id": "unique"}, {"$set": {"status": "running"}});
         start = new Date().getTime();
@@ -43,6 +56,8 @@ while (running) {
                 "ping":     end
             }});
         counter = 0;
+
+        log(loglevels.DEBUG, "Going to sleep for " + interval + "ms");
         sleep(interval);
     }
 }
@@ -50,8 +65,12 @@ while (running) {
 function mapReduce() {
     var actions = db.mapreduce.find();
 
+    log(loglevels.DEBUG, "Found " + actions.count() + " actions");
+
     actions.forEach(function(action) {
+        log(loglevels.DEBUG, "Checking if " + action.name + " should be executed");
         if (shouldRun(action)) {
+            log(loglevels.DEBUG, "Executing " + action.name);
             runAction(action);
         }
     });
@@ -59,15 +78,30 @@ function mapReduce() {
 
 function shouldRun(action) {
     var timestamp = new Date().getTime();
-    return (action.hasOwnProperty("force")  && action.force === true)
-            || (action.hasOwnProperty("lastrun") && action.hasOwnProperty("interval")
-                && action.lastrun + action.interval < timestamp);
+
+    var execute = false;
+
+    if (action.hasOwnProperty("force") && action.force === true) {
+        execute = true;
+        log(loglevels.DEBUG, "Force set to true");
+    } else if (action.hasOwnProperty("lastrun") && action.hasOwnProperty("interval")
+                && action.lastrun + action.interval < timestamp) {
+        execute = true;
+        log(loglevels.DEBUG, "lastrun + interval = " + action.lastrun + " + " + action.interval + " = " + (action.lastrun + action.interval));
+    }
+
+    return execute;
 }
 
 function run(actionName) {
+    log(loglevels.INFO, "Trying to run action manually", actionName);
+
     var action = db.mapreduce.findOne({"name": actionName});
     if (action !== null) {
+        log(loglevels.INFO, "Action found, running", actionName);
         printjson(runAction(action, "manual"));
+    } else {
+        log(loglevels.WARNING, "Action not found", actionName);
     }
 }
 
@@ -86,13 +120,17 @@ function extractOptions(action) {
         }
     }
 
+    log(loglevels.DEBUG, "Applying options", options);
+
     if (action.hasOwnProperty("previous") && action.previous !== null) {
         previous = action.previous;
     } else {
+        log(loglevels.DEBUG, "Resetting output collection - previous is empty");
         clearOut(action);
     }
 
     if (options.hasOwnProperty("query") && typeof (options.query) === "function") {
+        log(loglevels.DEBUG, "We have a query function, applying it to get a query document");
         options.query = options.query.apply(action, [previous]);
     }
 
@@ -110,6 +148,7 @@ function clearOut(action) {
         }
     }
 
+    log(loglevels.INFO, "Clearing " + out + " - reset", action);
     if (typeof out === "string") {
         db[out].remove();
     }
@@ -122,7 +161,7 @@ function runAction(action, type) {
         cleanResult,
         previous = {},
         update,
-        log;
+        logObj;
 
     counter += 1;
 
@@ -130,8 +169,14 @@ function runAction(action, type) {
         type = "auto";
     }
 
+    if (action.hasOwnProperty("pre") && typeof (action.pre) === "function") {
+        log(loglevels.DEBUG, "Applying pre-processing function");
+        action.pre.apply(action);
+    }
+
     options = extractOptions(action);
 
+    log(loglevels.DEBUG, "Applying mapReduce");
     result = db[action.collection].mapReduce(
         action.map,
         action.reduce,
@@ -153,6 +198,8 @@ function runAction(action, type) {
     previous.timestamp  = timestamp;
     previous.result     = cleanResult;
 
+    log(loglevels.DEBUG, "Updating action-information");
+
     update = {
         "force":    false,
         "lastrun":  timestamp,
@@ -165,13 +212,42 @@ function runAction(action, type) {
         {"$set":    update}
     );
 
-    log = {
+    logObj = {
         "timestamp":    timestamp,
         "action":       action,
         "result":       cleanResult
     };
 
-    db.mapreduce.log.insert(log);
+    log(loglevels.INFO, "Finished running " + action.name, logObj);
+
+
+    if (action.hasOwnProperty("post") && typeof (action.post) === "function") {
+        log(loglevels.DEBUG, "Applying post-processing information");
+        action.post.apply(action);
+    }
 
     return log;
+}
+
+
+function log(level, message, data) {
+    if (level >= loglevel.db || level >= loglevel.console) {
+        var ts = new Date().getTime();
+
+        var logObj = {
+            timestamp: ts,
+            pid: pid,
+            level: level,
+            message: message,
+            data: data
+        };
+
+        if (level >= loglevel.db) {
+            db.mapreduce.log.insert(logObj);
+        }
+
+        if (level >= loglevel.console) {
+            print(ts + "\t" + pid.toString() + "\t" + message);
+        }
+    }
 }
