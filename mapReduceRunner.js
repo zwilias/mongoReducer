@@ -28,7 +28,7 @@ function mapReduce() {
 
     actions.forEach(function(action) {
         var timestamp = new Date().getTime();
-        if ((action.hasOwnProperty("reset")  && action.reset === true)
+        if ((action.hasOwnProperty("force")  && action.force === true)
             || (action.hasOwnProperty("lastrun") && action.hasOwnProperty("interval")
                 && action.lastrun + action.interval < timestamp))
         {
@@ -40,18 +40,26 @@ function mapReduce() {
 function run(actionName) {
     var action = db.mapreduce.findOne({"name": actionName});
     if (action != null) {
-        printjson(runAction(action));
+        printjson(runAction(action, "manual"));
     }
 }
 
-function runAction(action) {
-    var timestamp = new Date().getTime();
-    action.reset = false;
-    action.lastrun = timestamp;
-    db.mapreduce.save(action);
-            
-    delete action._id;
+function runAction(action, type) {
+    if (typeof(type) === "undefined") {
+        var type = "auto";
+    }
 
+    var timestamp = new Date().getTime();
+
+    update.force = false;
+    update.lastrun = timestamp;
+    update.type = type;
+
+    db.mapreduce.update(
+            {"_id": action._id},
+            {"$set": update}
+        );
+            
     var options = {};
     var possibleOptions = ["finalize", "out", "sort", "limit", "query"];
     for (var i = 0, c = possibleOptions.length; i < c; i++) {
