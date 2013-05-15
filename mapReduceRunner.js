@@ -3,8 +3,7 @@ var running = true;
 var interval = 1000;
 
 db.mapreduce.run.save(
-        {"_id": "unique"}, 
-        {"pid": pid}
+        {"_id": "unique", "pid": pid}
     );
 
 print(pid.toString() + ": running");
@@ -12,7 +11,7 @@ print(pid.toString() + ": running");
 while (running) {
     var runningPid = db.mapreduce.run.findOne({"_id": "unique"});
 
-    if (runningPid == null) {
+    if (runningPid == null || !runningPid.hasOwnProperty("pid")) {
         running = false;
         print(pid.toString() + ": exiting - canceled");
     } else if (pid.toString() != runningPid.pid.toString()) {
