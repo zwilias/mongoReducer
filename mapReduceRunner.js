@@ -3,8 +3,9 @@
 
 var pid     = new ObjectId(),   // the "pid" of this runner
     running = true,             // when false, we exit
-    interval = 60000,           // how many ms we should sleep in between runs
-    counter = 0;                // how many mapReduce actions were executed this run
+    interval = 1000,           // how many ms we should sleep in between runs
+    counter = 0,
+    totalcount = 0;                // how many mapReduce actions were executed this run
 
 db.mapreduce.run.save(
     {"_id": "unique", "pid": pid}
@@ -31,11 +32,14 @@ while (running) {
         mapReduce();
         end = new Date().getTime();
 
+        totalcount += counter;
+
         db.mapreduce.run.update({"_id": "unique"}, {"$set":
             {
                 "status":   "sleeping",
                 "time":     end - start,
                 "actions":  counter,
+                "totalactions": totalcount,
                 "ping":     end
             }});
         counter = 0;
@@ -97,6 +101,7 @@ function extractOptions(action) {
 
 function clearOut(action) {
     var out = action.out;
+
     if (typeof out === "object") {
         if (out.hasOwnProperty("merge")) {
             out = out.merge;
