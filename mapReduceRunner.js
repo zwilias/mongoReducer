@@ -5,19 +5,21 @@
 // TODO: document
 // TODO: move settings to db (providing sane default settings)
 // TODO: perhaps provide string interpolation so debugging statements don't look as ugly
-// TODO: perhaps provide convenience debug(), info(), warning(), error() functions?
 // TODO: error handling
-// TODO: make polling loop a function, and the body an argument
 // TODO: provide convenience functions for doing a check, autostarting, starting in a parallel shell
 
-var pid     = new ObjectId(),   // the "pid" of this runner
-    running = true,             // when false, we exit
-    interval = 1000,            // how many ms we should sleep in between runs
-    counter = 0,                // how many mapReduce actions were executed this run
-    totalcount = 0;             // how many mapReduce actions were executed by this instance
+function _Poller() {
+    this.pid = new ObjectId();
+    this.running = false;
+    this.interval = 1000;
 
+    this.loglevel = {
+        db: _Poller.loglevels.DEBUG,
+        console: _Poller.loglevels.INFO
+    };
+}
 
-var loglevels = {
+_Poller.loglevels = {
     DEBUG: 0,       // things that are really quite redundant to see all the time,
                     // but are useful when debugging
     INFO: 1,        // quite useful when you're wondering what's going on
@@ -25,53 +27,106 @@ var loglevels = {
     ERROR: 3        // when we're broken and need fixing
 };
 
-var loglevel = {
-    db: loglevels.DEBUG,
-    console: loglevels.INFO
+_Poller.fn = {
+    log: function(level, message, data) {
+        if (level >= this.loglevel.db || level >= this.loglevel.console) {
+            var ts = new Date().getTime();
+
+            var logObj = {
+                timestamp:  ts,
+                pid:        this.pid,
+                level:      level,
+                message:    message,
+                data:       data
+            };
+
+            if (level >= this.loglevel.db) {
+                db.mapreduce.log.insert(logObj);
+            }
+
+            if (level >= this.loglevel.console) {
+                print(ts + "\t" + this.pid.toString() + "\t" + message);
+            }
+        }
+    },
+
+    debug: function(message, data) {
+        this.log(_Poller.loglevels.DEBUG, message, data);
+    },
+
+    info: function(message, data) {
+        this.log(_Poller.loglevels.INFO, message, data);
+    },
+
+    warning: function(message, data) {
+        this.log(_Poller.loglevels.WARNING, message, data);
+    },
+
+    error: function(message, data) {
+        this.log(_Poller.loglevels.ERROR, message, data);
+    },
+
+    start: function(body) {
+        this.pid = new ObjectId();
+        this.running = true;
+
+        db.mapreduce.run.save(
+            {"_id": "unique", "pid": this.pid}
+        );
+
+        this.info("Starting");
+
+        var runningPid = {},
+            start = 0,
+            end = 0;
+
+        while (this.running) {
+            runningPid = db.mapreduce.run.findOne({"_id": "unique"});
+
+            if (runningPid === null || !runningPid.hasOwnProperty("pid")) {
+                this.running = false;
+                this.warning("Exiting, canceled");
+            } else if (this.pid.toString() !== runningPid.pid.toString()) {
+                this.running = false;
+                this.warning("Exiting, new instance started");
+            } else {
+                db.mapreduce.run.update({"_id": "unique"}, {"$set": {"status": "running"}});
+
+                body();
+
+                this.debug("Going to sleep for " + this.interval + "ms");
+                sleep(this.interval);
+            }
+        }
+    }
 };
 
-db.mapreduce.run.save(
-    {"_id": "unique", "pid": pid}
-);
+Object.extend(_Poller.fn, _Poller.prototype);
+_Poller.prototype = _Poller.fn;
 
-log(loglevels.INFO, "Starting");
 
-var runningPid = {},
-    start = 0,
-    end = 0;
+var Poller = new _Poller();
+Poller.start(doMapReduce);
 
-while (running) {
-    runningPid = db.mapreduce.run.findOne({"_id": "unique"});
-
-    if (runningPid === null || !runningPid.hasOwnProperty("pid")) {
-        running = false;
-        log(loglevels.WARNING, "Exiting, canceled");
-    } else if (pid.toString() !== runningPid.pid.toString()) {
-        running = false;
-        log(loglevels.WARNING, "Exiting, new instance started");
-    } else {
-        db.mapreduce.run.update({"_id": "unique"}, {"$set": {"status": "running"}});
-
-        doMapReduce();
-
-        log(loglevels.DEBUG, "Going to sleep for " + interval + "ms");
-        sleep(interval);
-    }
-}
-
+var counter = 0; // how many mapReduce actions were executed this run
 function doMapReduce() {
+    var start,
+        end;
+
+    this.totalcount = this.totalcount || 0;
+
     start = new Date().getTime();
     executeMapReduceActions();
     end = new Date().getTime();
 
-    totalcount += counter;
+    this.totalcount += counter;
 
     db.mapreduce.run.update({"_id": "unique"}, {"$set":
         {
             "status":   "sleeping",
             "time":     end - start,
             "actions":  counter,
-            "totalactions": totalcount,
+            "totalactions": this.totalcount,
             "ping":     end
         }});
     counter = 0;
@@ -80,12 +135,12 @@ function doMapReduce() {
 function executeMapReduceActions() {
     var actions = db.mapreduce.find();
 
-    log(loglevels.DEBUG, "Found " + actions.count() + " actions");
+    Poller.debug("Found " + actions.count() + " actions");
 
     actions.forEach(function(action) {
-        log(loglevels.DEBUG, "Checking if " + action.name + " should be executed");
+        Poller.debug("Checking if " + action.name + " should be executed");
         if (shouldRun(action)) {
-            log(loglevels.DEBUG, "Executing " + action.name);
+            Poller.debug("Executing " + action.name);
             runAction(action);
         }
     });
@@ -109,11 +164,11 @@ function shouldRun(action) {
 
     if (action.hasOwnProperty("force") && action.force === true) {
         execute = true;
-        log(loglevels.DEBUG, "Force set to true");
+        Poller.debug("Force set to true");
     } else if (action.hasOwnProperty("lastrun") && action.hasOwnProperty("interval")
                 && action.lastrun + action.interval < timestamp) {
         execute = true;
-        log(loglevels.DEBUG, "lastrun + interval = " + action.lastrun + " + " + action.interval + " = " + (action.lastrun + action.interval));
+        Poller.debug("lastrun + interval = " + action.lastrun + " + " + action.interval + " = " + (action.lastrun + action.interval));
     }
 
     return execute;
@@ -123,14 +178,14 @@ function shouldRun(action) {
  * Convenience function to easily allow to manually run an action - simply specify the name
  */
 function run(actionName) {
-    log(loglevels.INFO, "Trying to run action manually", actionName);
+    Poller.info("Trying to run action manually", actionName);
 
     var action = db.mapreduce.findOne({"name": actionName});
     if (action !== null) {
-        log(loglevels.INFO, "Action found, running", actionName);
+        Poller.info("Action found, running", actionName);
         printjson(runAction(action, "manual"));
     } else {
-        log(loglevels.WARNING, "Action not found", actionName);
+        Poller.warning("Action not found", actionName);
     }
 }
 
@@ -171,7 +226,7 @@ function extractOptions(action) {
             action.lastrun > 0
         ) {
 
-        log(loglevels.DEBUG, "Setting default incremental options");
+        Poller.debug("Setting default incremental options");
 
         if (action.hasOwnProperty("out") && typeof (action.out) === "string" && typeof (action.out) !== "object") {
             options.out = {reduce: action.out};
@@ -194,16 +249,16 @@ function extractOptions(action) {
     }
 
     if (!options.hasOwnProperty("out")) {
-        log(loglevels.WARNING, "No output collection/action specified, writing to results." + action.name, action);
+        Poller.warning("No output collection/action specified, writing to results." + action.name, action);
         options.out = {reduce: "results." + action.name};
     }
 
-    log(loglevels.DEBUG, "Applying options");
+    Poller.debug("Applying options");
 
     if (action.hasOwnProperty("previous") && action.previous !== null) {
         previous = action.previous;
     } else {
-        log(loglevels.DEBUG, "Resetting output collection - previous is empty");
+        Poller.debug("Resetting output collection - previous is empty");
         clearOut(action);
     }
 
@@ -224,7 +279,7 @@ function extractQuery(action) {
 
     if (action.hasOwnProperty("queryf") && typeof (action.queryf) === "function") {
         if (query !== null) {
-            log(loglevels.WARNING, "Both 'query' and 'queryf' are defined, using 'queryf'", action);
+            Poller.warning("Both 'query' and 'queryf' are defined, using 'queryf'", action);
         }
 
         query = action.queryf.apply(action);
@@ -244,7 +299,7 @@ function clearOut(action) {
         }
     }
 
-    log(loglevels.INFO, "Clearing " + out + " - reset", action);
+    Poller.info("Clearing " + out + " - reset", action);
     if (typeof out === "string") {
         db[out].remove();
     }
@@ -266,13 +321,13 @@ function runAction(action, type) {
     }
 
     if (action.hasOwnProperty("pre") && typeof (action.pre) === "function") {
-        log(loglevels.DEBUG, "Applying pre-processing function");
+        Poller.debug("Applying pre-processing function");
         action.pre.apply(action);
     }
 
     options = extractOptions(action);
 
-    log(loglevels.DEBUG, "Applying mapReduce");
+    Poller.debug("Applying mapReduce");
     result = db[action.collection].mapReduce(
         action.map,
         action.reduce,
@@ -294,7 +349,7 @@ function runAction(action, type) {
     previous.timestamp  = timestamp;
     previous.result     = cleanResult;
 
-    log(loglevels.DEBUG, "Updating action-information");
+    Poller.debug("Updating action-information");
 
     update = {
         "force":    false,
@@ -319,36 +374,13 @@ function runAction(action, type) {
         "options":      options
     };
 
-    log(loglevels.INFO, "Finished running " + action.name, logObj);
+    Poller.info("Finished running " + action.name, logObj);
 
 
     if (action.hasOwnProperty("post") && typeof (action.post) === "function") {
-        log(loglevels.DEBUG, "Applying post-processing information");
+        Poller.debug("Applying post-processing information");
         action.post.apply(action);
     }
 
-    return log;
-}
-
-
-function log(level, message, data) {
-    if (level >= loglevel.db || level >= loglevel.console) {
-        var ts = new Date().getTime();
-
-        var logObj = {
-            timestamp: ts,
-            pid: pid,
-            level: level,
-            message: message,
-            data: data
-        };
-
-        if (level >= loglevel.db) {
-            db.mapreduce.log.insert(logObj);
-        }
-
-        if (level >= loglevel.console) {
-            print(ts + "\t" + pid.toString() + "\t" + message);
-        }
-    }
+    return logObj;
 }
