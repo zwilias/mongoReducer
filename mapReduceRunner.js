@@ -286,7 +286,7 @@ var initMapReducer = function () {
             Poller.info("Finished running " + action.name, logObj);
 
             if (action.hasOwnProperty("post") && typeof (action.post) === "function") {
-                Poller.debug("Applying post-processing information");
+                Poller.debug("Applying post-processing function");
                 action.post.apply(action);
             }
 
