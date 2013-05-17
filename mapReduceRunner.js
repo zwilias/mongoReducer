@@ -308,3 +308,7 @@ var setup = function() {
     db.system.js.save({"_id": "initMapReducer", "value": initMapReducer});
     db.system.js.save({"_id": "start", "value": start});
 };
+
+if (typeof(autostart) !== "undefined" && autostart) {
+    start();
+}
