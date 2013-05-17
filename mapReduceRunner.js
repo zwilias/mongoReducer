@@ -154,7 +154,7 @@ function run(actionName) {
  */
 function extractOptions(action) {
     var options = {},
-        possibleOptions = ["finalize", "sort", "limit", "query"],
+        possibleOptions = ["finalize", "sort", "limit"],
         i,
         c,
         option,
@@ -207,12 +207,30 @@ function extractOptions(action) {
         clearOut(action);
     }
 
-    if (options.hasOwnProperty("query") && typeof (options.query) === "function") {
-        log(loglevels.DEBUG, "We have a query function, applying it to get a query document");
-        options.query = options.query.apply(action, [previous]);
+    var q = extractQuery(action);
+    if (q !== null) {
+        options.query = q;
     }
 
     return options;
+}
+
+function extractQuery(action) {
+    var query = null;
+
+    if (action.hasOwnProperty("query") && typeof (action.query) === "string") {
+        eval("query = " + action.query);
+    }
+
+    if (action.hasOwnProperty("queryf") && typeof (action.queryf) === "function") {
+        if (query !== null) {
+            log(loglevels.WARNING, "Both 'query' and 'queryf' are defined, using 'queryf'", action);
+        }
+
+        query = action.queryf.apply(action);
+    }
+
+    return query;
 }
 
 function clearOut(action) {
