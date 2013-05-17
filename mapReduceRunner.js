@@ -6,7 +6,7 @@
 // TODO: document
 // TODO: move settings to db (providing sane default settings)
 // TODO: error handling
-// TODO: provide convenience functions for doing a check, autostarting, starting in a parallel shell
+// TODO: refactor extractOptions() and runAction()
 var initPoller = function () {
 
     function _Poller() {
@@ -90,7 +90,7 @@ var initPoller = function () {
 };
 
 var initMapReducer = function () {
-    if (Poller === undefined) {
+    if (typeof (Poller) === "undefined") {
         initPoller();
     }
 
@@ -294,13 +294,17 @@ var initMapReducer = function () {
 };
 
 var start = function() {
-    if (mapReducer === undefined || Poller === undefined) {
+    if (typeof (mapReducer) === "undefined" || typeof (Poller) === "undefined") {
         initMapReducer();
     }
 
     Poller.start(mapReducer.exec, mapReducer);
-}
+};
 
 var setup = function() {
     // insert initPoller, initMapReducer and start() into the db
-}
+    print("Saving initPoller(), initMapReducer() and start() in system.js.");
+    db.system.js.save({"_id": "initPoller", "value": initPoller});
+    db.system.js.save({"_id": "initMapReducer", "value": initMapReducer});
+    db.system.js.save({"_id": "start", "value": start});
+};
