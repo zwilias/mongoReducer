@@ -1,5 +1,6 @@
 /*global db, sleep, print, ObjectId, printjson, mapReduce, run, shouldRun, runAction, clearOut, tojsononeline */
 /*jslint nomen: true, sloppy: true, todo: true */
+
 // echo "start()" | mongo localhost/test js.js --shell > log &
 // TODO: clean up
 // TODO: document
@@ -7,6 +8,7 @@
 // TODO: error handling
 // TODO: provide convenience functions for doing a check, autostarting, starting in a parallel shell
 var initPoller = function () {
+
     function _Poller() {
         this.pid = new ObjectId();
         this.running = false;
@@ -16,6 +18,7 @@ var initPoller = function () {
             console: _Poller.loglevels.INFO
         };
     }
+
     _Poller.loglevels = {
         DEBUG: 0,       // things that are really quite redundant to see all the time,
                         // but are useful when debugging
@@ -23,6 +26,7 @@ var initPoller = function () {
         WARNING: 2,     // generally used for recoverable things or when exiting
         ERROR: 3        // when we're broken and need fixing
     };
+
     _Poller.fn = {
         log: function(level, message, data) {
             if (level >= this.loglevel.db || level >= this.loglevel.console) {
@@ -54,7 +58,7 @@ var initPoller = function () {
         error: function(message, data) {
             this.log(_Poller.loglevels.ERROR, message, data);
         },
-        start: function(body, scope, doFork) {
+        start: function(body, scope) {
             this.pid = new ObjectId();
             this.running = true;
             db.mapreduce.run.save(
@@ -79,16 +83,22 @@ var initPoller = function () {
             }
         }
     };
+
     Object.extend(_Poller.fn, _Poller.prototype);
     _Poller.prototype = _Poller.fn;
     Poller = new _Poller(); // release it into the global namespace!
-}
+};
+
 var initMapReducer = function () {
-    initPoller();
+    if (Poller === undefined) {
+        initPoller();
+    }
+
     function MapReducer() {
         this.counter = 0;
         this.totalcount = 0;
     }
+
     MapReducer.fn = {
         shouldRun: function(action) {
             var timestamp = new Date().getTime(),
@@ -277,13 +287,17 @@ var initMapReducer = function () {
             this.counter = 0;
         }
     };
+
     Object.extend(MapReducer.fn, MapReducer.prototype);
     MapReducer.prototype = MapReducer.fn;
     mapReducer = new MapReducer();
 };
 
 var start = function() {
-    initMapReducer();
+    if (mapReducer === undefined || Poller === undefined) {
+        initMapReducer();
+    }
+
     Poller.start(mapReducer.exec, mapReducer);
 }
 
