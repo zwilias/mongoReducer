@@ -7,6 +7,8 @@
 // TODO: perhaps provide string interpolation so debugging statements don't look as ugly
 // TODO: perhaps provide convenience debug(), info(), warning(), error() functions?
 // TODO: error handling
+// TODO: make polling loop a function, and the body an argument
+// TODO: provide convenience functions for doing a check, autostarting, starting in a parallel shell
 
 var pid     = new ObjectId(),   // the "pid" of this runner
     running = true,             // when false, we exit
@@ -49,28 +51,33 @@ while (running) {
         log(loglevels.WARNING, "Exiting, new instance started");
     } else {
         db.mapreduce.run.update({"_id": "unique"}, {"$set": {"status": "running"}});
-        start = new Date().getTime();
-        mapReduce();
-        end = new Date().getTime();
 
-        totalcount += counter;
-
-        db.mapreduce.run.update({"_id": "unique"}, {"$set":
-            {
-                "status":   "sleeping",
-                "time":     end - start,
-                "actions":  counter,
-                "totalactions": totalcount,
-                "ping":     end
-            }});
-        counter = 0;
+        doMapReduce();
 
         log(loglevels.DEBUG, "Going to sleep for " + interval + "ms");
         sleep(interval);
     }
 }
 
-function mapReduce() {
+function doMapReduce() {
+    start = new Date().getTime();
+    executeMapReduceActions();
+    end = new Date().getTime();
+
+    totalcount += counter;
+
+    db.mapreduce.run.update({"_id": "unique"}, {"$set":
+        {
+            "status":   "sleeping",
+            "time":     end - start,
+            "actions":  counter,
+            "totalactions": totalcount,
+            "ping":     end
+        }});
+    counter = 0;
+}
+
+function executeMapReduceActions() {
     var actions = db.mapreduce.find();
 
     log(loglevels.DEBUG, "Found " + actions.count() + " actions");
