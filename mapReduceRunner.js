@@ -46,28 +46,37 @@ var initPoller = function () {
                 }
             }
         },
+
         debug: function(message, data) {
             this.log(_Poller.loglevels.DEBUG, message, data);
         },
+
         info: function(message, data) {
             this.log(_Poller.loglevels.INFO, message, data);
         },
+
         warning: function(message, data) {
             this.log(_Poller.loglevels.WARNING, message, data);
         },
+
         error: function(message, data) {
             this.log(_Poller.loglevels.ERROR, message, data);
         },
+
         start: function(body, scope) {
             this.pid = new ObjectId();
             this.running = true;
+
             db.mapreduce.run.save(
                 {"_id": "unique", "pid": this.pid}
             );
+
             this.info("Starting");
             var runningPid = {};
+
             while (this.running) {
                 runningPid = db.mapreduce.run.findOne({"_id": "unique"});
+
                 if (runningPid === null || !runningPid.hasOwnProperty("pid")) {
                     this.running = false;
                     this.warning("Exiting, canceled");
@@ -81,6 +90,7 @@ var initPoller = function () {
                     sleep(this.interval);
                 }
             }
+
         }
     };
 
@@ -103,6 +113,7 @@ var initMapReducer = function () {
         shouldRun: function(action) {
             var timestamp = new Date().getTime(),
                 execute = false;
+
             if (action.hasOwnProperty("force") && action.force === true) {
                 execute = true;
                 Poller.debug("Force set to true");
@@ -111,23 +122,31 @@ var initMapReducer = function () {
                 execute = true;
                 Poller.debug("lastrun + interval = " + action.lastrun + " + " + action.interval + " = " + (action.lastrun + action.interval));
             }
+
             return execute;
         },
+
         extractQuery: function(action) {
             var query = null;
+
             if (action.hasOwnProperty("query") && typeof (action.query) === "string") {
                 eval("query = " + action.query);
             }
+
             if (action.hasOwnProperty("queryf") && typeof (action.queryf) === "function") {
                 if (query !== null) {
                     Poller.warning("Both 'query' and 'queryf' are defined, using 'queryf'", action);
                 }
+
                 query = action.queryf.apply(action);
             }
+
             return query;
         },
+
         clearOut: function(action) {
             var out = action.out;
+
             if (typeof out === "object") {
                 if (out.hasOwnProperty("merge")) {
                     out = out.merge;
@@ -135,11 +154,14 @@ var initMapReducer = function () {
                     out = out.reduce;
                 }
             }
+
             Poller.info("Clearing " + out + " - reset", action);
+
             if (typeof out === "string") {
                 db[out].remove();
             }
         },
+
         extractOptions: function(action) {
             var options = {},
                 possibleOptions = ["finalize", "sort", "limit"],
@@ -148,6 +170,11 @@ var initMapReducer = function () {
                 q,
                 option,
                 setCustomOut = false;
+
+            if (action.hasOwnProperty("out")) {
+                options.out = action.out;
+            }
+
             if (action.hasOwnProperty("incremental") &&
                     typeof (action.incremental) === "string" &&
                     action.hasOwnProperty("previous") &&
@@ -155,35 +182,42 @@ var initMapReducer = function () {
                     action.hasOwnProperty("lastrun") &&
                     action.lastrun > 0) {
                 Poller.debug("Setting default incremental options");
+
                 if (action.hasOwnProperty("out") && typeof (action.out) === "string" && typeof (action.out) !== "object") {
                     options.out = {reduce: action.out};
                     setCustomOut = true;
                 }
+
                 options.query = {};
                 options.query[action.incremental] = {"$gt": action.lastrun};
             }
+
             for (i = 0, c = possibleOptions.length; i < c; i += 1) {
                 option = possibleOptions[i];
+
                 if (action.hasOwnProperty(option)) {
                     options[option] = action[option];
                 }
             }
-            if (action.hasOwnProperty("out") && !setCustomOut) {
-                options.out = action.out;
-            }
+
             if (!options.hasOwnProperty("out")) {
                 Poller.warning("No output collection/action specified, writing to results." + action.name, action);
                 options.out = {reduce: "results." + action.name};
             }
+
             Poller.debug("Applying options");
+
             if (!action.hasOwnProperty("previous") || action.previous === null) {
                 Poller.debug("Resetting output collection - previous is empty");
                 this.clearOut(action);
             }
+
             q = this.extractQuery(action);
+
             if (q !== null) {
                 options.query = q;
             }
+
             return options;
         },
         runAction: function(action, type) {
@@ -194,14 +228,18 @@ var initMapReducer = function () {
                 previous = {},
                 update,
                 logObj;
+
             this.counter += 1;
+
             if (type === undefined) {
                 type = "auto";
             }
+
             if (action.hasOwnProperty("pre") && typeof (action.pre) === "function") {
                 Poller.debug("Applying pre-processing function");
                 action.pre.apply(action);
             }
+
             options = this.extractOptions(action);
             Poller.debug("Applying mapReduce");
             result = db[action.collection].mapReduce(
@@ -216,9 +254,11 @@ var initMapReducer = function () {
                 "ok":           result.ok,
                 "counts":       result.counts
             };
+
             if (action.hasOwnProperty("previous")) {
                 previous = action.previous;
             }
+
             previous.timestamp  = timestamp;
             previous.result     = cleanResult;
             Poller.debug("Updating action-information");
@@ -232,9 +272,11 @@ var initMapReducer = function () {
                 {"_id":     action._id},
                 {"$set":    update}
             );
+
             if (options.hasOwnProperty("query") && typeof (options.query) === "object") {
                 options.query = tojsononeline(options.query);
             }
+
             logObj = {
                 "timestamp":    timestamp,
                 "action":       action,
@@ -247,11 +289,14 @@ var initMapReducer = function () {
                 Poller.debug("Applying post-processing information");
                 action.post.apply(action);
             }
+
             return logObj;
         },
+
         run: function(actionName) {
             Poller.info("Trying to run action manually", actionName);
             var action = db.mapreduce.findOne({"name": actionName});
+
             if (action !== null) {
                 Poller.info("Action found, running", actionName);
                 printjson(this.runAction(action, "manual"));
@@ -259,20 +304,25 @@ var initMapReducer = function () {
                 Poller.warning("Action not found", actionName);
             }
         },
+
         execActions: function(actions) {
             var that = this; // the anonymous function in actions.forEach can't access "this"
             Poller.debug("Found " + actions.count() + " actions");
+
             actions.forEach(function(action) {
                 Poller.debug("Checking if " + action.name + " should be executed");
+
                 if (that.shouldRun(action)) {
                     Poller.debug("Executing " + action.name);
                     that.runAction(action);
                 }
             });
         },
+
         exec: function() {
             var start = new Date().getTime(),
                 end;
+
             this.execActions(db.mapreduce.find());
             end = new Date().getTime();
             this.totalcount += this.counter;
