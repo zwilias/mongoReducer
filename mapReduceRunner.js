@@ -308,13 +308,15 @@ function runAction(action, type) {
         {"$set":    update}
     );
 
+    if (options.hasOwnProperty("query") && typeof (options.query) === "object") {
+        options.query = tojsononeline(options.query);
+    }
+
     logObj = {
         "timestamp":    timestamp,
         "action":       action,
-        "result":       cleanResult
-        // TODO: because the query field might contain fields that start with "$", signifying an operator,
-        // and fields starting with "$" are not allowed in mongo, we can't log the options object as-is.
-        // so, we'll need to find a solution for that.
+        "result":       cleanResult,
+        "options":      options
     };
 
     log(loglevels.INFO, "Finished running " + action.name, logObj);
