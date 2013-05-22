@@ -5,7 +5,6 @@
 // TODO: clean up
 // TODO: document
 // TODO: error handling
-// TODO: refactor extractOptions() and runAction()
 var initPoller = function () {
 
     function _Poller() {
@@ -270,47 +269,69 @@ var initMapReducer = function () {
             return options;
         },
 
-        runAction: function(action, type) {
-            var options,
-                result,
-                timestamp,
-                cleanResult,
-                previous = {},
-                update,
-                logObj;
-
-            this.counter += 1;
-
-            if (type === undefined) {
-                type = "auto";
-            }
-
+        doPreprocessing: function(action) {
             if (action.hasOwnProperty("pre") && typeof (action.pre) === "function") {
                 Poller.debug("Applying pre-processing function");
                 action.pre.apply(action);
             }
+        },
 
-            options = this.extractOptions(action);
+        doPostprocessing: function(action) {
+            if (action.hasOwnProperty("post") && typeof (action.post) === "function") {
+                Poller.debug("Applying post-processing function");
+                action.post.apply(action);
+            }
+        },
+
+        doMapReduce: function(action, options) {
             Poller.debug("Applying mapReduce");
-            result = db[action.collection].mapReduce(
+            return db[action.collection].mapReduce(
                 action.map,
                 action.reduce,
                 options
             );
-            timestamp = new Date().getTime();
-            cleanResult = {
+        },
+
+        extractCleanResult: function(result) {
+            return {
                 "out":          result.result,
                 "timeMillis":   result.timeMillis,
                 "ok":           result.ok,
                 "counts":       result.counts
             };
+        },
 
+        generatePreviousObj: function(action, cleanResult, timestamp) {
+            var previous = {};
             if (action.hasOwnProperty("previous")) {
                 previous = action.previous;
             }
 
             previous.timestamp  = timestamp;
             previous.result     = cleanResult;
+
+            return previous;
+        },
+
+        doLogActionrun: function(action, timestamp, cleanResult, options) {
+            if (options.hasOwnProperty("query") && typeof (options.query) === "object") {
+                options.query = tojsononeline(options.query);
+            }
+
+            var logObj = {
+                "timestamp":    timestamp,
+                "action":       action,
+                "result":       cleanResult,
+                "options":      options
+            };
+            Poller.info("Finished running " + action.name, logObj);
+
+            return logObj;
+        },
+
+        updateActionInfo: function(action, timestamp, type, previous) {
+            var update;
+
             Poller.debug("Updating action-information");
             update = {
                 "force":    false,
@@ -322,23 +343,36 @@ var initMapReducer = function () {
                 {"_id":     action._id},
                 {"$set":    update}
             );
+        },
 
-            if (options.hasOwnProperty("query") && typeof (options.query) === "object") {
-                options.query = tojsononeline(options.query);
+        runAction: function(action, type) {
+            var options,
+                result,
+                timestamp,
+                cleanResult,
+                previous,
+                logObj;
+
+            this.counter += 1;
+
+            if (type === undefined) {
+                type = "auto";
             }
 
-            logObj = {
-                "timestamp":    timestamp,
-                "action":       action,
-                "result":       cleanResult,
-                "options":      options
-            };
-            Poller.info("Finished running " + action.name, logObj);
+            this.doPreprocessing(action);
 
-            if (action.hasOwnProperty("post") && typeof (action.post) === "function") {
-                Poller.debug("Applying post-processing function");
-                action.post.apply(action);
-            }
+            options = this.extractOptions(action);
+            result = this.doMapReduce(action, options);
+
+            timestamp = new Date().getTime();
+            cleanResult = this.extractCleanResult(result);
+            previous = this.generatePreviousObj(action, cleanResult, timestamp);
+
+            this.updateActionInfo(action, timestamp, type, previous);
+
+            logObj = this.doLogActionrun(action, timestamp, cleanResult, options);
+
+            this.doPostprocessing(action);
 
             return logObj;
         },
