@@ -108,7 +108,13 @@ var initPoller = function () {
                     this.warning("Exiting, new instance started");
                 } else {
                     db.mapreduce.run.update({"_id": "unique"}, {"$set": {"status": "running"}});
-                    body.apply(scope);
+
+                    try {
+                        body.apply(scope);
+                    } catch (e) {
+                        this.error("An error occurred", e);
+                    }
+
                     this.debug("Going to sleep for " + this.interval + "ms");
                     sleep(this.interval);
                 }
