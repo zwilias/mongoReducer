@@ -4,7 +4,6 @@
 // echo "start()" | mongo localhost/test js.js --shell > log &
 // TODO: clean up
 // TODO: document
-// TODO: move settings to db (providing sane default settings)
 // TODO: error handling
 // TODO: refactor extractOptions() and runAction()
 var initPoller = function () {
@@ -26,21 +25,24 @@ var initPoller = function () {
 
     _Poller.fn = {
         getConfig: function() {
-            var config = {
-                interval: 1000,
-                loglevel: {
-                    db: _Poller.loglevels.DEBUG,
-                    console: _Poller.loglevels.INFO
-                }
-            };
 
-            for (var val in config) {
-                var x = db.mapreduce.settings.findOne({_id: val});
+            var key,
+                value,
+                config = {
+                    interval: 1000,
+                    loglevel: {
+                        db: _Poller.loglevels.DEBUG,
+                        console: _Poller.loglevels.INFO
+                    }
+                };
 
-                if (x !== null) {
-                    config[val] = x.value;
+            for (key in config) {
+                value = db.mapreduce.settings.findOne({_id: key});
+
+                if (value !== null) {
+                    config[key] = value.value;
                 } else {
-                    db.mapreduce.settings.insert({_id: val, value: config[val]});
+                    db.mapreduce.settings.insert({_id: key, value: config[key]});
                 }
             }
 
@@ -119,7 +121,6 @@ var initPoller = function () {
                     sleep(this.interval);
                 }
             }
-
         }
     };
 
