@@ -12,11 +12,8 @@ var initPoller = function () {
     function _Poller() {
         this.pid = new ObjectId();
         this.running = false;
-        this.interval = 1000;
-        this.loglevel = {
-            db: _Poller.loglevels.DEBUG,
-            console: _Poller.loglevels.INFO
-        };
+        this.interval = false;  // getConfig() will replace this with the actual interval
+        this.loglevel = false;  // getconfig will replace this with the actual desired loglevels
     }
 
     _Poller.loglevels = {
@@ -28,6 +25,29 @@ var initPoller = function () {
     };
 
     _Poller.fn = {
+        getConfig: function() {
+            var config = {
+                interval: 1000,
+                loglevel: {
+                    db: _Poller.loglevels.DEBUG,
+                    console: _Poller.loglevels.INFO
+                }
+            };
+
+            for (var val in config) {
+                var x = db.mapreduce.settings.findOne({_id: val});
+
+                if (x !== null) {
+                    config[val] = x.value;
+                } else {
+                    db.mapreduce.settings.insert({_id: val, value: config[val]});
+                }
+            }
+
+            this.interval = config.interval;
+            this.loglevel = config.loglevel;
+        },
+
         log: function(level, message, data) {
             if (level >= this.loglevel.db || level >= this.loglevel.console) {
                 var ts = new Date().getTime(),
@@ -64,6 +84,8 @@ var initPoller = function () {
         },
 
         start: function(body, scope) {
+            this.getConfig();
+
             this.pid = new ObjectId();
             this.running = true;
 
@@ -75,6 +97,7 @@ var initPoller = function () {
             var runningPid = {};
 
             while (this.running) {
+                this.getConfig();
                 runningPid = db.mapreduce.run.findOne({"_id": "unique"});
 
                 if (runningPid === null || !runningPid.hasOwnProperty("pid")) {
