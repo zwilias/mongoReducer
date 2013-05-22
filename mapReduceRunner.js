@@ -191,18 +191,8 @@ var initMapReducer = function () {
             }
         },
 
-        extractOptions: function(action) {
-            var options = {},
-                possibleOptions = ["finalize", "sort", "limit"],
-                i,
-                c,
-                q,
-                option,
-                setCustomOut = false;
-
-            if (action.hasOwnProperty("out")) {
-                options.out = action.out;
-            }
+        genIncrementalOptions: function(action) {
+            var options = {};
 
             if (action.hasOwnProperty("incremental") &&
                     typeof (action.incremental) === "string" &&
@@ -214,41 +204,71 @@ var initMapReducer = function () {
 
                 if (action.hasOwnProperty("out") && typeof (action.out) === "string" && typeof (action.out) !== "object") {
                     options.out = {reduce: action.out};
-                    setCustomOut = true;
                 }
 
                 options.query = {};
                 options.query[action.incremental] = {"$gt": action.lastrun};
             }
 
-            for (i = 0, c = possibleOptions.length; i < c; i += 1) {
-                option = possibleOptions[i];
+            return options;
+        },
 
+        genContainedOptions: function(action) {
+            var options = {},
+                possibleOptions = ["finalize", "sort", "limit"],
+                option;
+
+            for (option in possibleOptions) {
                 if (action.hasOwnProperty(option)) {
                     options[option] = action[option];
                 }
             }
 
-            if (!options.hasOwnProperty("out")) {
+            return options;
+        },
+
+        genOutOption: function(action) {
+            var options = {};
+
+            if (action.hasOwnProperty("out")) {
+                options.out = action.out;
+            } else {
                 Poller.warning("No output collection/action specified, writing to results." + action.name, action);
                 options.out = {reduce: "results." + action.name};
             }
 
-            Poller.debug("Applying options");
+            return options;
+        },
 
+        clearOutputCollection: function(action) {
             if (!action.hasOwnProperty("previous") || action.previous === null) {
                 Poller.debug("Resetting output collection - previous is empty");
                 this.clearOut(action);
             }
+        },
 
-            q = this.extractQuery(action);
+        extractOptions: function(action) {
+            var options = {};
 
-            if (q !== null) {
-                options.query = q;
-            }
+            // First we create an "out" option. We do this first because it might be overwritten when
+            // figuring out the options for incremental map reduce functionality. Order matters!
+            //
+            // Next, we see if the action is an automagical incremental action. If it is, we specify
+            // the options needed for that.
+            //
+            // Finally, we extract the options, if any, which are specified in the action object and
+            // should be passed through unmodified. For now, those are "finalize", "sort" and "limit".
+            Object.extend(options, this.genOutOption(action));
+            Object.extend(options, this.genIncrementalOptions(action));
+            Object.extend(options, this.genContainedOptions(action));
+
+            this.clearOutputCollection(action);
+
+            options.query = this.extractQuery(action) || options.query;
 
             return options;
         },
+
         runAction: function(action, type) {
             var options,
                 result,
