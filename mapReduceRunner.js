@@ -1,12 +1,44 @@
 /*global db, sleep, print, ObjectId, printjson, mapReduce, run, shouldRun, runAction, clearOut, tojsononeline */
 /*jslint nomen: true, sloppy: true, todo: true */
 
-// echo "start()" | mongo localhost/test js.js --shell > log &
-// TODO: clean up
-// TODO: document
-// TODO: error handling
+/**
+ * Class definitions and convenience functions for using mongo's map-reduce functionality from the inside out.
+ *
+ * More info on http://mongoinsideout.blogspot.com
+ *
+ * @author Ilias Van Peer, Geert Van Damme
+ * @version 0.1
+ */
+
+/**
+ * Convenience function that defines a constructor, static properties and instance methods for the _Poller class
+ * and releases a Poller instance into the global namespace
+ */
 var initPoller = function () {
 
+    /**
+     * Creates an instance of the _Poller class.
+     *
+     * The _Poller class contains the main polling loop, as well as logging functionality and convenience functions
+     * for logging at a number of levels. Those levels are defined in _Poller.loglevels.
+     *
+     * The settings for the polling loop as well as for the logging functionality can be defined in the database. This
+     * should happen in the db.mapreduce.settings collections. Currently the following settings are supported:
+     *
+     * - interval: an integer value defining how many milliseconds the polling loop should sleep inbetween each polling action
+     * - loglevel: an object with 2 key-value pairs (db and console) defining the minimum level a message should have before
+     *      appearing in the output. Logging to the db writes to db.mapreduce.log, writing to the console simply prints the message.
+     *      To disable all logging, set both db and console to a value higher than 3.
+     *
+     * When the _Poller is instantiated, it will generated a "pid". This "pid" is just an ObjectId, used to identify an instance uniquely.
+     * This pid is saved to the database in the db.mapreduce.run collection, which is akin to a typical runfile.
+     *
+     * There may only be one single entry in the db.mapreduce.run collection, which we signify, by convention, by setting the _id to "unique".
+     * When this value is removed or overwritten with a new "pid" by starting a new instance, the current instance will exit.
+     *
+     * @constructor
+     * @this {_Poller}
+     */
     function _Poller() {
         this.pid = new ObjectId();
         this.running = false;
@@ -14,15 +46,41 @@ var initPoller = function () {
         this.loglevel = false;  // getconfig will replace this with the actual desired loglevels
     }
 
+    /**
+     * Static property on _Poller with the different possible loglevels.
+     */
     _Poller.loglevels = {
-        DEBUG: 0,       // things that are really quite redundant to see all the time,
-                        // but are useful when debugging
-        INFO: 1,        // quite useful when you're wondering what's going on
-        WARNING: 2,     // generally used for recoverable things or when exiting
-        ERROR: 3        // when we're broken and need fixing
+        /**
+         * Things that are really quite redundant to see all the time, but are useful when debugging.
+         */
+        DEBUG: 0,
+
+        /**
+         * Quite useful when you're wondering what's going on.
+         */
+        INFO: 1,
+
+        /**
+         * Used for recoverable, user-side mistakes. Can signify that a correction was made to user-input.
+         */
+        WARNING: 2,
+
+        /**
+         * Signifies something broke.
+         */
+        ERROR: 3
     };
 
+    /**
+     * Defines all the methods that will become part of the Prototype. This may later be extended with extra
+     * methods or be overridden by the user.
+     */
     _Poller.fn = {
+        /**
+         * Fetches the settings from db.mapreduce.settings and updates our instance properties.
+         *
+         * @this {_Poller}
+         */
         getConfig: function() {
 
             var key,
@@ -49,6 +107,14 @@ var initPoller = function () {
             this.loglevel = config.loglevel;
         },
 
+        /**
+         * Logs a message and optional, additional data, with a certain level to the console and/or db.
+         *
+         * @this {_Poller}
+         * @param {int} level       The log-level of this message. One of _Poller.loglevels.
+         * @param {string} message  The message that should be logged. This will be shown in the console.
+         * @param {object} data     Optional data-object that will be saved to the database giving context to the message.
+         */
         log: function(level, message, data) {
             if (level >= this.loglevel.db || level >= this.loglevel.console) {
                 var ts = new Date().getTime(),
@@ -68,22 +134,63 @@ var initPoller = function () {
             }
         },
 
+        /**
+         * Convenience function that logs a DEBUG level message.
+         *
+         * @see {_Poller.fn.log}
+         * @this {_Poller}
+         * @param {string} message  The message that should be logged. This will be shown in the console.
+         * @param {object} data     Optional data-object that will be saved to the database giving context to the message.
+         */
         debug: function(message, data) {
             this.log(_Poller.loglevels.DEBUG, message, data);
         },
 
+        /**
+         * Convenience function that logs an INFO level message.
+         *
+         * @see {_Poller.fn.log}
+         * @this {_Poller}
+         * @param {string} message  The message that should be logged. This will be shown in the console.
+         * @param {object} data     Optional data-object that will be saved to the database giving context to the message.
+         */
         info: function(message, data) {
             this.log(_Poller.loglevels.INFO, message, data);
         },
 
+        /**
+         * Convenience function that logs a WARNING level message.
+         *
+         * @see {_Poller.fn.log}
+         * @this {_Poller}
+         * @param {string} message  The message that should be logged. This will be shown in the console.
+         * @param {object} data     Optional data-object that will be saved to the database giving context to the message.
+         */
         warning: function(message, data) {
             this.log(_Poller.loglevels.WARNING, message, data);
         },
 
+        /**
+         * Convenience function that logs an ERROR level message.
+         *
+         * @see {_Poller.fn.log}
+         * @this {_Poller}
+         * @param {string} message  The message that should be logged. This will be shown in the console.
+         * @param {object} data     Optional data-object that will be saved to the database giving context to the message.
+         */
         error: function(message, data) {
             this.log(_Poller.loglevels.ERROR, message, data);
         },
 
+        /**
+         * Starts the polling loop.
+         *
+         * This will make sure the settings are up to date, and run the body-function in the specified scope, if any.
+         *
+         * @this {_Poller}
+         * @param {function} body   The main body of the loop. This can, for example, be something like MapReducer.exec.
+         * @param {object} scope    The scope that should be set on the body.
+         */
         start: function(body, scope) {
             this.getConfig();
 
@@ -103,10 +210,10 @@ var initPoller = function () {
 
                 if (runningPid === null || !runningPid.hasOwnProperty("pid")) {
                     this.running = false;
-                    this.warning("Exiting, canceled");
+                    this.info("Exiting, canceled");
                 } else if (this.pid.toString() !== runningPid.pid.toString()) {
                     this.running = false;
-                    this.warning("Exiting, new instance started");
+                    this.info("Exiting, new instance started");
                 } else {
                     db.mapreduce.run.update({"_id": "unique"}, {"$set": {"status": "running"}});
 
@@ -123,22 +230,114 @@ var initPoller = function () {
         }
     };
 
+    // Extend _Poller.fn with the prototype, and set the prototype to fn.
+    // That way, extra functionality can be added by referring to _Poller.fn.
     Object.extend(_Poller.fn, _Poller.prototype);
     _Poller.prototype = _Poller.fn;
     Poller = new _Poller(); // release it into the global namespace!
 };
 
+/**
+ * Convenience function that defines a constructor and instance methods for our MapReducer class.
+ *
+ * This will also ensure that the Poller object has been declared and defined, as well as create a MapReducer object and
+ * release it into the global namespace.
+ */
 var initMapReducer = function () {
     if (typeof (Poller) === "undefined") {
         initPoller();
     }
 
+    /**
+     * Instantiates a MapReducer object.
+     *
+     * @constructor
+     * @this {MapReducer}
+     */
     function MapReducer() {
         this.counter = 0;
         this.totalcount = 0;
     }
 
+    /**
+     * Like with _Poller, we define all instance methods for MapReducer object in a static property of the MapReducer class.
+     *
+     * Inside this class, we often refer to "action" objects. By an "action" object, we mean a document retrieved from the db.mapreducer
+     * collection.
+     *
+     * A minimal action object should have the following schema:
+     *
+     * {
+     *      name: "string",
+     *      collection: "string",
+     *      map: function() {},
+     *      reduce: function(key, values) {}
+     * }
+     *
+     * This would create an Action object that can only manually be run by calling MapReducer.runAction(*name of object*)
+     *
+     * However, that's not particularily useful. To create an action that runs periodically, at minimum "interval" and "lastrun" key-value pairs
+     * should be defined on the action. Interval specifies the minimal number of milliseconds between 2 consecutive runs. "lastrun" specifies
+     * the epoch in milliseconds of the last time this action object finished executing.
+     *
+     * Whenever an action object is executed, it will receive a "previous" property with extra information about the previous time an action was ran.
+     * This information includes a timestamp (generally the same as the lastrun property), as well as the mapreduceresult info. If a "previous" object
+     * is already declared on an action object, it will be extended with the latest information, preserving any custom properties that may have been
+     * declared.
+     *
+     * Additional properties may be declared on the action object:
+     *
+     * 1. pre: function and/or post: function
+     *
+     * When defined, the "pre" function will be called as a preprecessing function on the action object. The scope of the pre function will be set
+     * to the action. The same goes for the "post" function which will be called as a final step in the chain as a postprocessing step.
+     *
+     * 2. finalize, sort, limit
+     *
+     * These properties will be passed through, unmodified, to the mapreduce command, if declared.
+     * See their documentation in the mongo docs for more info.
+     *
+     * 3. out: string | object
+     *
+     * When specified, this will generally be passed through unmodified to the mapreduce command. When this is not specified,
+     * we fallback to {out: {reduce: *action.name*}}.
+     *
+     * This can be modified when the action is specified to be an incremental object. If the "out" property is then set simple to a collection,
+     * it will be replaced by {out: {reduce: *action.out*}}
+     *
+     * 4. incremental: string
+     *
+     * If this is set, we assume you want to make this action an incremental map-reduce action. The "incremental" property should give the path to a
+     * json property defined on the documents it runs on that specifies a timestamp. We can then generate a default query that limits the input documents
+     * to those created after the last time mapreduce was run.
+     *
+     * 5. query: string and queryf: function
+     *
+     * To limit the input objects to a certain set of objects, specify either the query document as a json-string or define a function that
+     * returns a query document. The reason we don't simply ask for an object here, is that often these query documents will have an operator
+     * such as "$gt". Such documents cannot be saved in the database.
+     *
+     * When queryf is declared, it will be called with its scope set to the action object, so any and all properties declared on the action document
+     * will be accessible to the queryf function, including but not limited to the "previous" property.
+     *
+     * 6. force: boolean
+     *
+     * When set to "true", this action will be executed on the next run of the polling loop, no matter what.
+     *
+     * NOTE: to reset a map-reduce action, clear or remove its "previous" property. This will force us to remove all documents from the output collection
+     * and start afresh.
+     */
     MapReducer.fn = {
+        /**
+         * Decides whether a given action should be executed.
+         *
+         * There are 2 things we look at here, the "force" property, and the "interval" and "lastrun" properties. If force is set to true,
+         * this action will be executed. If lastrun + interval < the current time, this action will execute. Otherwise, it won't.
+         *
+         * @this {MapReducer}
+         * @param   {object}    action
+         * @return {boolean}    True when this action should be executed, false if it should not.
+         */
         shouldRun: function(action) {
             var timestamp = new Date().getTime(),
                 execute = false;
@@ -155,6 +354,13 @@ var initMapReducer = function () {
             return execute;
         },
 
+        /**
+         * Attempts to extract the query document, if any, specified in this action object.
+         *
+         * @this {MapReducer}
+         * @param {object} action
+         * @return {object} The query document, created by eval'ing the action.query jsonstring or executing the action.queryf function
+         */
         extractQuery: function(action) {
             var query = null;
 
@@ -173,8 +379,14 @@ var initMapReducer = function () {
             return query;
         },
 
+        /**
+         * When called, this method will find the output collection of the specified action and empty it.
+         *
+         * @this {MapReducer}
+         * @param {object} action
+         */
         clearOut: function(action) {
-            var out = action.out;
+            var out = this.genOutOption(action, true).out;
 
             if (typeof out === "object") {
                 if (out.hasOwnProperty("merge")) {
@@ -191,6 +403,13 @@ var initMapReducer = function () {
             }
         },
 
+        /**
+         * If the incremental property was specified on the action, this method will generate some default options for doing incremental map-reduce.
+         *
+         * @this {MapReducer}
+         * @param {object} action
+         * @return {object} either an empty object if incremental does not apply, or an options object with some defaults set.
+         */
         genIncrementalOptions: function(action) {
             var options = {};
 
@@ -213,6 +432,15 @@ var initMapReducer = function () {
             return options;
         },
 
+        /**
+         * Extracts an options contained in the action object.
+         *
+         * Currently, this is limited to "finalize", "sort" and "limit", which are passed through unmodified to the mapreduce command.
+         *
+         * @this {MapReducer}
+         * @param {object} action
+         * @return {object} An options object that can be merged into the other options.
+         */
         genContainedOptions: function(action) {
             var options = {},
                 possibleOptions = ["finalize", "sort", "limit"],
@@ -227,19 +455,41 @@ var initMapReducer = function () {
             return options;
         },
 
-        genOutOption: function(action) {
+        /**
+         * Extracts of generates an output collection for the specified action object.
+         *
+         * If the action object does not specify an output collection or action, this will throw a warning (unless supressWarnings is specified) and
+         * write the results to {out: {reduce: "results" + action.name}}
+         *
+         * @this {MapReducer}
+         * @param {object} action
+         * @param {boolean} supressWarnings
+         * @return {object} an options object for merging into the main options object.
+         */
+        genOutOption: function(action, supressWarnings) {
             var options = {};
+            supressWarnings = supressWarnings === undefined
+                ? false
+                : supressWarnings;
 
             if (action.hasOwnProperty("out")) {
                 options.out = action.out;
             } else {
-                Poller.warning("No output collection/action specified, writing to results." + action.name, action);
+                if (!supressWarnings) {
+                    Poller.warning("No output collection/action specified, writing to results." + action.name, action);
+                }
                 options.out = {reduce: "results." + action.name};
             }
 
             return options;
         },
 
+        /**
+         * Will decide whether the ouput collection of the specified action object must be cleared, and if so, will call clearOut.
+         *
+         * @this {MapReducer}
+         * @param {object} action
+         */
         clearOutputCollection: function(action) {
             if (!action.hasOwnProperty("previous") || action.previous === null) {
                 Poller.debug("Resetting output collection - previous is empty");
@@ -247,6 +497,23 @@ var initMapReducer = function () {
             }
         },
 
+        /**
+         * Prepares the complete options object that will be passed into the mapreduce command.
+         *
+         * This will execute the following methods, in order, and merge their results:
+         *
+         * - this.genOutOption(action)
+         * - this.genIncrementalOptions(action)
+         * - this.genContainedOptions(action)
+         *
+         * It will the check to see if the output collection needs to be cleared.
+         *
+         * Finally, it will see if a query or queryf was declared, and prepare the query document.
+         *
+         * @this {MapReducer}
+         * @param {object} action
+         * @return {object} options object
+         */
         extractOptions: function(action) {
             var options = {};
 
@@ -269,6 +536,12 @@ var initMapReducer = function () {
             return options;
         },
 
+        /**
+         * If a pre-function was declared, run it.
+         *
+         * @this {MapReducer}
+         * @param {object} action
+         */
         doPreprocessing: function(action) {
             if (action.hasOwnProperty("pre") && typeof (action.pre) === "function") {
                 Poller.debug("Applying pre-processing function");
@@ -276,6 +549,12 @@ var initMapReducer = function () {
             }
         },
 
+        /**
+         * If a post-function was declared, run it.
+         *
+         * @this {MapReducer}
+         * @param {object} action
+         */
         doPostprocessing: function(action) {
             if (action.hasOwnProperty("post") && typeof (action.post) === "function") {
                 Poller.debug("Applying post-processing function");
@@ -283,6 +562,14 @@ var initMapReducer = function () {
             }
         },
 
+        /**
+         * Executes the mapReduce command on the given action with the supplied options, if any.
+         *
+         * @this {MapReducer}
+         * @param {object} action
+         * @param {object} options
+         * @return {object} mapReduceResult object
+         */
         doMapReduce: function(action, options) {
             Poller.debug("Applying mapReduce");
             return db[action.collection].mapReduce(
@@ -292,6 +579,15 @@ var initMapReducer = function () {
             );
         },
 
+        /**
+         * Extracts a subset of the key-value pairs a regular mapReduceResult object contains.
+         *
+         * Specifically, ti will extract the result, timeMillis, ok and counts properties.
+         *
+         * @this {MapReducer}
+         * @param {object} mapReduceResult object
+         * @return {object} object with "out", "timeMillis", "ok" and "counts" properties
+         */
         extractCleanResult: function(result) {
             return {
                 "out":          result.result,
@@ -301,6 +597,15 @@ var initMapReducer = function () {
             };
         },
 
+        /**
+         * Extends or generate a "previous" property to attach to the action.
+         *
+         * @this {MapReducer}
+         * @param {object} action
+         * @param {object} cleanResult a cleaned mapReduceResult object
+         * @param {long} timestamp The epoch in milliseconds
+         * @return {object} previous
+         */
         generatePreviousObj: function(action, cleanResult, timestamp) {
             var previous = {};
             if (action.hasOwnProperty("previous")) {
@@ -313,6 +618,16 @@ var initMapReducer = function () {
             return previous;
         },
 
+        /**
+         * Create a log entry after running the specified action
+         *
+         * @this {MapReducer}
+         * @param {object} action
+         * @param {long} timestamp
+         * @param {object} clearResult
+         * @param {object} options
+         * @return {object} The object that was added to the log entry as additional data.
+         */
         doLogActionrun: function(action, timestamp, cleanResult, options) {
             if (options.hasOwnProperty("query") && typeof (options.query) === "object") {
                 options.query = tojsononeline(options.query);
@@ -329,6 +644,15 @@ var initMapReducer = function () {
             return logObj;
         },
 
+        /**
+         * Updates the action in the database, setting force to false, lastrun, type and previous information.
+         *
+         * @this {MapReducer}
+         * @param {object} action
+         * @param {long} timestamp
+         * @param {string} type
+         * @param {object} previous
+         */
         updateActionInfo: function(action, timestamp, type, previous) {
             var update;
 
@@ -345,6 +669,14 @@ var initMapReducer = function () {
             );
         },
 
+        /**
+         * Runs the specified action.
+         *
+         * @this {MapReducer}
+         * @param {object} action
+         * @param {string} type (manual, auto or undefined, defaulting to auto)
+         * @return {object} the log object
+         */
         runAction: function(action, type) {
             var options,
                 result,
@@ -377,6 +709,12 @@ var initMapReducer = function () {
             return logObj;
         },
 
+        /**
+         * Runs the action specified by a name
+         *
+         * @param {string} actionName
+         * @this {MapReducer}
+         */
         run: function(actionName) {
             Poller.info("Trying to run action manually", actionName);
             var action = db.mapreduce.findOne({"name": actionName});
@@ -389,6 +727,12 @@ var initMapReducer = function () {
             }
         },
 
+        /**
+         * For each action in the specified list of actions, figure out if the action should run and if so, run it.
+         *
+         * @param {Array.[object]} actions  Array fo action objects
+         * @this {MapReducer}
+         */
         execActions: function(actions) {
             var that = this; // the anonymous function in actions.forEach can't access "this"
             Poller.debug("Found " + actions.count() + " actions");
@@ -403,6 +747,13 @@ var initMapReducer = function () {
             });
         },
 
+        /**
+         * Finds all actions, tries to execute them, and keeps some timing information and counters around.
+         *
+         * This is the main entrypoint in the MapReducer universe.
+         *
+         * @this {MapReducer}
+         */
         exec: function() {
             var start = new Date().getTime(),
                 end;
