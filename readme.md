@@ -16,12 +16,12 @@ So called “action objects” are simply a name we use to refer to any document
 
 A minimal such _action_ object looks as follows:
 
-```json
+```
 {
-	"collection":	“aCollection”,
-    "map": 		function () {},
-    "reduce": 	function (key, values) {},
-    "name": 		“aName”
+	"collection":	"aCollection",
+    "map":			function () {},
+    "reduce":		function (key, values) {},
+    "name":			"aName"
 }
 ```
 
@@ -35,17 +35,37 @@ The `force` property allows forcing an action to be executed the next time the p
 
 Example:
 
-```json
+```
 {
-	"collection":	“aCollection”,
-    "map": 		function () {},
-    "reduce": 	function (key, values) {},
-    "name": 		“aName”,
-    “force”:		true
+	"collection":	"aCollection",
+	"map":			function () {},
+	"reduce":		function (key, values) {},
+	"name":			"aName",
+	"force":			true
 }
 ```
 
 This forces the `aName` action to be executed on the next run. It will afterwards automatically be set to `false`.
 
 ### The `out` property ###
+
+The `out` property defines the output collection to which results of the map-reduce action should be written. Parallel to the `out` option property classically passed into the db._collection_.mapReduce command, this can specify either a collection name or an `action`.
+
+In most cases, this parameter will be passed to the raw `mapReduce` command unmodified.
+
+When the `out` property is not specified, a *warning* is emitted and the property will default to `{reduce: db.results.*action.collection*}`.
+
+Example:
+
+```
+{
+	"collection":	"aCollection",
+	"map":			function () {},
+	"reduce":		function (key, values) {},
+	"name":			"aName",
+	"out":			{ "reduce": "outCollection" }
+}
+```
+
+For more information on the `out` options, please have a look at [the mongo docs on the `out` options](http://docs.mongodb.org/manual/reference/command/mapReduce/#out-options).
 
