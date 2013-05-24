@@ -2,6 +2,28 @@
 
 __MongoReducer__ allows running mongo's mapreduce functionality from within mongo.
 
+## Table of Contents ##
+
+1. [Introduction](#introduction)
+2. [An action object](#an-action-object)
+	1. [The `force` property](#the-force-property)
+	2. [The `out` property](#the-out-property)
+	3. [The `jsMode`, `verbose`, `scope`, `finalize`, `sort` and `limit` properties](#the-jsmode-verbose-scope-finalize-sort-and-limit-properties)
+	4. [The `pre` and `post` properties](#the-pre-and-post-properties)
+	5. [The `lastrun` property](#the-lastrun-property)
+	6. [The `interval` property](#the-interval-property)
+	7. [The `previous` property](#the-previous-property)
+	8. [The `type` property](#the-type-property)
+	9. [The `incremental` property](#the-incremental-property)
+	10. [The `query` and `queryf` properties](#the-query-and-queryf-properties)
+	11. [Overview](#overview)
+3. [The `MapReducer` object](#the-mapreducer-object)
+4. [The `_Poller` class and `Poller` object](#the-poller-class-and-poller-object)
+
+***
+
+## Introduction ##
+
 Specifically, this is a framework of sorts, built using convention over configuration in mind, which allows saving a complete map-reduce actions, with its mapper and reducer and all other configuration and settings in the `db.mapreduce` collection and running it with a single command.
 
 Furthermore, __MongoReducer__ comes with a polling loop which polls the `db.mapreduce` collection (amongst others) and will run all map-reduce actions found within, at specified time-intervals, without the need for a complicated setup involving a number of cronjobs and a host of other scripts for actually executing the map-reduce actions.
