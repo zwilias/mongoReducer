@@ -41,7 +41,7 @@ Example:
 	"map":			function () {},
 	"reduce":		function (key, values) {},
 	"name":			"aName",
-	"force":			true
+	"force": 		true
 }
 ```
 
@@ -68,4 +68,106 @@ Example:
 ```
 
 For more information on the `out` options, please have a look at [the mongo docs on the `out` options](http://docs.mongodb.org/manual/reference/command/mapReduce/#out-options).
+
+### The `jsMode`, `verbose`, `scope`, `finalize`, `sort` and `limit` properties ###
+
+These options are all passed through to the raw `mapReduce` command. For more information on these properties, please have a look at [the official docs](http://docs.mongodb.org/manual/reference/command/mapReduce/).
+
+For the `finalize` property, pay special attention to the [requirements for the `finalize` function](http://docs.mongodb.org/manual/reference/command/mapReduce/#requirements-for-the-finalize-function) as declared in the official documentation.
+
+Also note that the `scope` document is relevant to the `map` and `reduce` functions as well, specifying further global variables accessible from their context.
+
+As a reference for how to add these properties, here's a small example.
+
+```
+{
+	"collection":	"aCollection",
+	"map":			function () {},
+	"reduce":		function (key, values) {},
+	"name":			"aName",
+	"scope": 		{ "var1": someVar, "var2": anotherVar },
+	"finalize":		function (key, reducedValue) { return reducedValue; },
+	"sort":			{},
+	"limit": 		{},
+	"jsMode":		false,
+	"verbose":		true
+}
+```
+
+_Caveat_: Using the `scope` property requires releasing a number of variables into the global namespace. In this case, `someVar` and `anotherVar` are expected to be resolvable in the global namespace.
+
+### The `pre` and `post` properties ###
+
+The `pre` and `post` properties allow defining pre- and postprocessing functions which will be called as the first and lasts steps in the map-reduce chain respectively.
+
+The `pre` and `post` functions are both called with their scope set to the _action object_, so they both have complete, read-write access to the current action, as well as the `db` object. Note that only modifications made to the `previous` property will be saved to the database, unless you save modifications manually within the `pre` and/or `post` processing functions. Changes made to the _action object_ within the `pre` function will still be there when the `post` function is called.
+
+Prototype example:
+
+```
+{
+	"collection":	"aCollection",
+	"map":			function () {},
+	"reduce":		function (key, values) {},
+	"name":			"aName",
+	"pre":			function() { //this refers to the action object },
+	"post":			function() { //this refers to the action object }
+}
+```
+
+The `pre` and `post` functions may but need not be both declared.
+
+### The `lastrun` property ###
+
+The `lastrun` property is automatically created and/or updated, and contains the timestamp (epoch in milliseconds) of the last time this action was executed.
+
+### The `interval` property ###
+
+With the `interval` property, an action can be turned into a periodically executing action. The `interval` specifies the _minimum_ number of milliseconds between consecutive runs.
+
+If `action.interval + action.lastrun < currentTimestamp`, the action is executed.
+
+_Note_: this implies that it is necessary to have the `lastrun` property declared and set. This can be done either manually, or by setting the `force` property to true to make it execute a first time instantly, after which the `lastrun` property will be automatically set.
+
+```
+{
+	"collection":	"aCollection",
+	"map":			function () {},
+	"reduce":		function (key, values) {},
+	"name":			"aName",
+	"interval":		3600000, 	// run this every hour
+	"last run":		0			// starting at the next possible moment
+}
+```
+
+### The `previous` property ###
+
+After each run, the `previous` property will be populated with information regarding the finished run. The `previous` property typically has the following schema:
+
+```
+{
+	"timestamp":		0, // timestamp as an epoch in milliseconds, typically the same as the last run property
+	"result":		{
+		"out":			"outCollection", // output collection
+		"timeMillis":	5, // time in milliseconds the action mapReduce command took
+		"ok":			1, // 1 if the mapReduce command finished successfully, 0 otherwise
+		"counts":		{  // note that if the verbose property is set to false, this will be {}
+			"input": 	0, // the number of input documents to the map-function
+			"emit":		0, // the number of documents the map-function emitted
+			"reduce":	0, // the number of calls to the reduce function
+			"output":	0  // the final number of documents this mapReduce run generated. This can be non-zero even if input, emit and reduce were 0, when the out-action is reduce.
+		}
+	}
+}
+```
+
+_Note_: If extra properties are defined on this document, their values will be preserved even after the `timestamp` and `result` properties are updated. This makes it possible to save extra information about the previous run in, for example, the `pre` and `post` functions, or use information from this document in the `queryf` function.
+
+_Note_: When the `previous` property evaluates to false, we assume a `reset`, meaning that if the `out` action is either simply a collection name, or either a `reduce` or `merge` action, we will clear this collection before running this action. Use with care.
+
+### The `type` property ###
+
+Another generated property, this property gives information on the _type_ of the last run. This will either be `auto`, signifying that this action was run by a combination of the `interval` and `lastrun` properties or by setting `force` to `true`, or `manual` when this action was executed manually (see the section on the `MapReducer` object for more information).
+
+### The `incremental` property ###
 
