@@ -22,7 +22,7 @@ __MongoReducer__ allows running mongo's mapreduce functionality from within mong
 4. [The `Poller` object](#the-poller-object)
 	1. [The "pid"](#the-pid)
 	2. [Logging](#logging)
-	3. [The `db.mapreduce.run` collection](#the-db-mapreduce-run-collection)
+	3. [The `db.mapreduce.run` collection](#the-dbmapreducerun-collection)
 	4. [Settings](#settings)
 6. [Installation and Usage](#installation-and-usage) 
 5. [License](#license)
