@@ -381,5 +381,51 @@ db.mapreduce.settings.insert({
 
 ## Installation and Usage ##
 
+There are a number of possible ways to set up and use _MongoReducer_.
+
+_MongoReducer_ can be started from within a mongo-shell. For example:
+
+```
+$ mongo
+MongoDB shell version: 2.4.3
+connecting to: test
+> load("mongoReducer.js")
+> start()
+1369401567992   519f68dfde45fcf85dcd459c        Starting
+```
+
+Instead of loading the Javascript file from within the shell, one could also pass it as an argument to the `mongo` command:
+
+```
+$ mongo mongoReducer.js --shell
+MongoDB shell version: 2.4.3
+connecting to: test
+type "help" for help
+> start()
+1369401666456   519f6942b78f5c8443e0c729        Starting
+```
+
+Alternatively, one could run the `setup()` function included in _MongoReducer_ to save all needed functions in the `system.js` collection. Afterwards, one could start the Poller from within a mongo shell or do something akin to the following:
+
+```
+$ echo "setup()" | mongo mongoReducer.js --shell
+MongoDB shell version: 2.4.3
+connecting to: test
+type "help" for help
+Saving initPoller(), initMapReducer() and start() in system.js.
+bye
+$ echo "db.loadServerScripts(); start()" | mongo > log &
+[1] 10861
+```
+
+Or, if you don't wish to store the _MongoReducer_ functions in the `system.js` collection:
+
+```
+$ echo "start()" | mongo mongoReducers.js --shell > log &
+```
 
 ## License ##
+
+_MongoReducer_ is released under the Creative Commons Attribution 3.0 Unported license.
+
+For full details, please read the included `LICENSE` file.
