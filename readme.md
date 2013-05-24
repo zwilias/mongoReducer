@@ -231,6 +231,8 @@ When both a `query` and `queryf` property are specified, a warning will be emitt
 
 ### Overview ###
 
+Here we provide an overview of all possible (meaningful) properties that can be set on action objects. Of course you may add your own properties, but be aware not to accidentally specify one of the following.
+
 | Property       | Type         | Generated   | Value    | Function                           |
 |----------------|--------------|-------------|----------|------------------------------------|
 | __name__       | required     | no          | string   | Identify and call actions by name. |
