@@ -240,7 +240,7 @@ Here we provide an overview of all possible (meaningful) properties that can be 
 | __map__        | required     | no          | function | A JavaScript function that associates or “maps” a value with a key and emits the key and value pair.|
 | __reduce__     | required     | no          | function | A JavaScript function that “reduces” to a single object all the values associated with a particular key. |
 | __force__      | optional     | yes [1]     | boolean  | Force an action to run.            |
-| __out__        | required [2] | no          | string\|object | Specified the output collection/action |
+| __out__        | required [2] | no          | string/object | Specified the output collection/action |
 | __jsMode__     | optional     | no          | boolean  | Specifies whether to convert intermediate data into BSON format between the execution of the map and reduce functions |
 | __verbose__    | optional     | no          | boolean  | Specifies whether to include the timing information in the result information. The verbose defaults to true to include the timing information. |
 | __scope__      | optional     | no          | document | Specifies global variables that are accessible in the map , reduce and the finalize functions. |
