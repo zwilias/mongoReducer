@@ -18,7 +18,14 @@ __MongoReducer__ allows running mongo's mapreduce functionality from within mong
 	10. [The `query` and `queryf` properties](#the-query-and-queryf-properties)
 	11. [Overview](#overview)
 3. [The `MapReducer` object](#the-mapreducer-object)
-4. [The `_Poller` class and `Poller` object](#the-poller-class-and-poller-object)
+	1. [Relevant methods](#relevant-methods)
+4. [The `Poller` object](#the-poller-object)
+	1. [The "pid"](#the-pid)
+	2. [Logging](#logging)
+	3. [The `db.mapreduce.run` collection](#the-db-mapreduce-run-collection)
+	4. [Settings](#settings)
+6. [Installation and Usage](#installation-and-usage) 
+5. [License](#license)
 
 ***
 
@@ -263,3 +270,116 @@ _Notes:_
 2. Although it is "required", omitting will result in a recoverable *warning*, with the option defaulting to `{ reduce: "results.*action.name*" }`.
 3. Though it is not a generated property, it generates a number of properties when set.
 
+## The `MapReducer` object ##
+
+The `MapReducer` object offers functionality for executing map-reduce _action objects_ as they are defined above.
+
+Internally, it has a number of helper methods for extracting various bits and pieces of necessary information, but for the end-user, generally speaking, only four methods are of importance.
+
+When the mongoReducer framework is loaded and a mongo shell, ensuring that a MapReducer object has been instantiated can be achieved by calling the `initMapReducer()` convenience function. This will ensure all dependencies have been constructed, as well as release a MapReducer object into the global namespace.
+
+### Relevant methods ###
+
+#### `MapReducer.runAction(object)` ####
+
+When the `runAction` method is passed an _action object_, it will execute this action, regardless of `force`, `interval` and `lastrun` properties.
+
+#### `MapReducer.run(string)` ####
+
+Convenience function that allows running an action by specifying the name.
+
+Its inner workings are simple - look up an action with a matching name in `db.mapreduce`, and pass it to `MapReducer.runAction()`.
+
+#### `MapReducer.execActions(Array of objects)` ####
+
+This method should be passed an Array of _action objects_. It will iterate through those objects, figure out whether they should be run (using the `force`, `lastrun` and `interval` properties) and executes them.
+
+#### `MapReducer.exec()` ####
+
+The main entry point. This will look up all _action objects_, pass them through to `MapReducer.execActions()` and keep a number of statistics.
+
+## The `Poller` object ##
+
+The `Poller` object is responsible for starting and maintaining the polling loop and comes with some logging functionality.
+
+### The "pid" ###
+
+As soon as the `Poller` object is instantiated, it will generate a "pid" for itself, equivalent to the process-id of a regular process. However, it will be in an inactive state until specified otherwise. This "pid" is in fact just an instance of _ObjectId_, so uniqueness is guaranteed, and information about the parent process, time of generation, etc. can be construed from the pid.
+
+This pid is used for uniquely identifying the `Poller` instance.
+
+### Logging ###
+
+The `Poller` instance has a number of logging-related methods. First and foremost, there is a `log(level, message, data)` method, which allows logging a message with optional data with a certain log level. Depending on the level and the configuration, this message and data will then be written to the console and/or/nor the database in the `db.mapreduce.log` collection.
+
+There are 4 log-levels defined:
+
+- 0: DEBUG
+- 1: INFO
+- 2: WARNING
+- 3: ERROR
+
+To filter log-messages by level, please see the section on configuration for the `Poller` object.
+
+### The `db.mapreduce.run` collection ###
+
+As soon as the polling loop is started by calling `Poller.start(body, scope)` (body should be a function, for example `MapReduce.exec`, and scope should be the scope that this function should run in, for example `MapReduce`), it will save its "pid" in the `db.mapreduce.run` collection.
+
+This collection, much like a typical run-file in the linux world, will hold some "process information". This collection may only have one single entry which is - by convention - identified by an `_id` of _unique_. All other entries in this collection are ignored.
+
+When the running `Poller` instance cannot find its own pid in the `db.mapreduce.run` collection, it will exit. This may happen when a new `Poller` is started (which will overwrite the existing document with `_id = "unique"`) or when the user force-kills the `Poller` instance by removing the document from the `db.mapreduce.run` collection.
+
+The `db.mapreduce.run` collection will, when used in conjunction with the MapReducer object, typically contain a document with the following schema:
+
+```
+{
+	"_id":			"unique",
+	"pid":			ObjectId("…"),
+	"status":		"sleeping", // or "running" if you happen to peek in the collection while the MapReducer is running
+	"time":			0, // the number of milliseconds the last MapReducer.exec() took
+	"actions":		0, // the number of map-reduce actions that were executed in the last run
+	"total actions":0, // the total number of map-reduce actions executed within this Poller instance
+	"ping":			0  // whenever the Poller is running, it will "ping" the database to let you know it is still alive
+}
+```
+
+### Settings ###
+
+There are a number of configuration options for the `Poller` object. All configuration goes into the `db.mapreduce.settings` collection and is read every time the `Poller` instance polls the database. As such, `Poller` instances can be reconfigured while running.
+
+#### Interval ####
+
+Just as the `interval` property of an _action object_ configures the minimal amount of milliseconds between two consecutive runs of an action, defining a document in the `db.mapreduce.settings` collection with an `_id` set to "interval" and a `value` set to a number allows managing the minimal number of milliseconds that should pass between two consecutive polls.
+
+If this is not set, the `Poller` will default to _1000_ milliseconds.
+
+Example configuration:
+
+```
+db.mapreduce.settings.insert({ "_id": "interval", "value": 1000 });
+```
+
+#### Log control ####
+
+By default, the `Poller` object will log all messages with a level of `DEBUG` or higher to the database in the `db.mapreduce.log` collection, as well as all messages with a level of `INFO` or higher to the console.
+
+_Note:_ for performance, it is best to make `db.mapreduce.log` a capped collection.
+
+This can be configured by creating a document with `_id` "loglevel" which should contain a document with 2 key-value pairs; one specifying the `db` log level, and one specifying the `console` log level.
+
+The default configuration is as follows:
+
+```
+db.mapreduce.settings.insert({
+	"_id":	"loglevel",
+	"value": {
+		"db":		0, // DEBUG
+		"console":	1  // INFO
+	}
+});
+```
+
+## Installation and Usage ##
+
+
+## License ##
