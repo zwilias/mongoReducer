@@ -127,7 +127,7 @@ _Caveat_: Using the `scope` property requires releasing a number of variables in
 
 ### The `pre` and `post` properties ###
 
-The `pre` and `post` properties allow defining pre- and postprocessing functions which will be called as the first and lasts steps in the map-reduce chain respectively.
+The `pre` and `post` properties allow defining pre- and post-processing functions which will be called as the first and lasts steps in the map-reduce chain respectively.
 
 The `pre` and `post` functions are both called with their scope set to the _action object_, so they both have complete, read-write access to the current action, as well as the `db` object. Note that only modifications made to the `previous` property will be saved to the database, unless you save modifications manually within the `pre` and/or `post` processing functions. Changes made to the _action object_ within the `pre` function will still be there when the `post` function is called.
 
@@ -421,7 +421,7 @@ $ echo "db.loadServerScripts(); start()" | mongo > log &
 Or, if you don't wish to store the _MongoReducer_ functions in the `system.js` collection:
 
 ```
-$ echo "start()" | mongo mongoReducers.js --shell > log &
+$ echo "start()" | mongo mongoReducer.js --shell > log &
 ```
 
 ## License ##
