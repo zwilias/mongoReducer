@@ -292,7 +292,7 @@ var initMapReducer = function () {
      * When defined, the "pre" function will be called as a preprecessing function on the action object. The scope of the pre function will be set
      * to the action. The same goes for the "post" function which will be called as a final step in the chain as a postprocessing step.
      *
-     * 2. finalize, sort, limit
+     * 2. finalize, sort, limit, scope, jsMode, verbose
      *
      * These properties will be passed through, unmodified, to the mapreduce command, if declared.
      * See their documentation in the mongo docs for more info.
@@ -435,7 +435,7 @@ var initMapReducer = function () {
         /**
          * Extracts an options contained in the action object.
          *
-         * Currently, this is limited to "finalize", "sort" and "limit", which are passed through unmodified to the mapreduce command.
+         * Currently, this is limited to "jsMode", "verbose", "scope", "finalize", "sort" and "limit", which are passed through unmodified to the mapreduce command.
          *
          * @this {MapReducer}
          * @param {object} action
@@ -443,7 +443,7 @@ var initMapReducer = function () {
          */
         genContainedOptions: function(action) {
             var options = {},
-                possibleOptions = ["finalize", "sort", "limit"],
+                possibleOptions = ["finalize", "sort", "limit", "scope", "verbose", "jsMode"],
                 option;
 
             for (option in possibleOptions) {
@@ -582,7 +582,7 @@ var initMapReducer = function () {
         /**
          * Extracts a subset of the key-value pairs a regular mapReduceResult object contains.
          *
-         * Specifically, ti will extract the result, timeMillis, ok and counts properties.
+         * Specifically, this will extract the result, timeMillis, ok and counts properties.
          *
          * @this {MapReducer}
          * @param {object} mapReduceResult object
@@ -593,7 +593,7 @@ var initMapReducer = function () {
                 "out":          result.result,
                 "timeMillis":   result.timeMillis,
                 "ok":           result.ok,
-                "counts":       result.counts
+                "counts":       result.counts || {}
             };
         },
 
