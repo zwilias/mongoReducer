@@ -45,7 +45,7 @@ So called “action objects” are simply a name we use to refer to any document
 
 A minimal such _action_ object looks as follows:
 
-```
+```javascript
 {
 	"collection":	"aCollection",
     "map":			function () {},
@@ -64,7 +64,7 @@ The `force` property allows forcing an action to be executed the next time the p
 
 Example:
 
-```
+```javascript
 {
 	"collection":	"aCollection",
 	"map":			function () {},
@@ -86,7 +86,7 @@ When the `out` property is not specified, a *warning* is emitted and the propert
 
 Example:
 
-```
+```javascript
 {
 	"collection":	"aCollection",
 	"map":			function () {},
@@ -108,7 +108,7 @@ Also note that the `scope` document is relevant to the `map` and `reduce` functi
 
 As a reference for how to add these properties, here's a small example.
 
-```
+```javascript
 {
 	"collection":	"aCollection",
 	"map":			function () {},
@@ -133,7 +133,7 @@ The `pre` and `post` functions are both called with their scope set to the _acti
 
 Prototype example:
 
-```
+```javascript
 {
 	"collection":	"aCollection",
 	"map":			function () {},
@@ -158,7 +158,7 @@ If `action.interval + action.lastrun < currentTimestamp`, the action is executed
 
 _Note_: this implies that it is necessary to have the `lastrun` property declared and set. This can be done either manually, or by setting the `force` property to true to make it execute a first time instantly, after which the `lastrun` property will be automatically set.
 
-```
+```javascript
 {
 	"collection":	"aCollection",
 	"map":			function () {},
@@ -173,7 +173,7 @@ _Note_: this implies that it is necessary to have the `lastrun` property declare
 
 After each run, the `previous` property will be populated with information regarding the finished run. The `previous` property typically has the following schema:
 
-```
+```javascript
 {
 	"timestamp":		0, // timestamp as an epoch in milliseconds, typically the same as the last run property
 	"result":		{
@@ -208,7 +208,7 @@ This entire use-case can be simulated by setting the `incremental` property, wit
 
 Example:
 
-```
+```javascript
 {
 	"collection":	"aCollection",
 	"map":			function () {},
@@ -331,7 +331,7 @@ When the running `Poller` instance cannot find its own pid in the `db.mapreduce.
 
 The `db.mapreduce.run` collection will, when used in conjunction with the MapReducer object, typically contain a document with the following schema:
 
-```
+```javascript
 {
 	"_id":			"unique",
 	"pid":			ObjectId("…"),
@@ -355,7 +355,7 @@ If this is not set, the `Poller` will default to _1000_ milliseconds.
 
 Example configuration:
 
-```
+```javascript
 db.mapreduce.settings.insert({ "_id": "interval", "value": 1000 });
 ```
 
@@ -369,7 +369,7 @@ This can be configured by creating a document with `_id` "loglevel" which should
 
 The default configuration is as follows:
 
-```
+```javascript
 db.mapreduce.settings.insert({
 	"_id":	"loglevel",
 	"value": {
