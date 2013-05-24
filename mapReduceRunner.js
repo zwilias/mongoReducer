@@ -494,6 +494,9 @@ var initMapReducer = function () {
             if (!action.hasOwnProperty("previous") || action.previous === null) {
                 Poller.debug("Resetting output collection - previous is empty");
                 this.clearOut(action);
+                return true;
+            } else {
+                return false;
             }
         },
 
@@ -515,7 +518,8 @@ var initMapReducer = function () {
          * @return {object} options object
          */
         extractOptions: function(action) {
-            var options = {};
+            var options = {}
+                reset = false;
 
             // First we create an "out" option. We do this first because it might be overwritten when
             // figuring out the options for incremental map reduce functionality. Order matters!
@@ -529,9 +533,13 @@ var initMapReducer = function () {
             Object.extend(options, this.genIncrementalOptions(action));
             Object.extend(options, this.genContainedOptions(action));
 
-            this.clearOutputCollection(action);
+            reset = this.clearOutputCollection(action);
 
             options.query = this.extractQuery(action) || options.query;
+
+            if (reset) {
+                delete options.query;
+            }
 
             return options;
         },
