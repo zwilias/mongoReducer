@@ -426,6 +426,6 @@ $ echo "start()" | mongo mongoReducer.js --shell > log &
 
 ## License ##
 
-_MongoReducer_ is released under the Creative Commons Attribution 3.0 Unported license.
+__MongoReducer__ is released under the Apache License, Version 2.0
 
-For full details, please read the included `LICENSE` file.
+Please refer to the *LICENSE* and *NOTICE* files for the complete licensing information.
