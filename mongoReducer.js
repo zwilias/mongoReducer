@@ -694,6 +694,8 @@ var initMapReducer = function () {
                 {"_id":     action._id},
                 {"$set":    update}
             );
+
+            Object.extend(action, update);
         },
 
         /**
