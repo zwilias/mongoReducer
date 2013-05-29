@@ -24,8 +24,10 @@ __MongoReducer__ allows running mongo's mapreduce functionality from within mong
 	2. [Logging](#logging)
 	3. [The `db.mapreduce.run` collection](#the-dbmapreducerun-collection)
 	4. [Settings](#settings)
-6. [Installation and Usage](#installation-and-usage) 
-5. [License](#license)
+5. [Installation and Usage](#installation-and-usage)
+6. [Contributing](#contributing)
+7. [Contributors](#contributors)
+7. [License](#license)
 
 ***
 
@@ -423,6 +425,15 @@ Or, if you don't wish to store the _MongoReducer_ functions in the `system.js` c
 ```
 $ echo "start()" | mongo mongoReducer.js --shell > log &
 ```
+
+## Contributing ##
+
+Anyone can contribute to this project. For a list of open issues, please see the [issues](https://github.com/zwilias/mongoReducer/issues). If you want to contribute, please make a pull request, referencing an issue if possible. After code-review and discussion, your contribution will be included, and your name listed in the readme and the changelog as a contributor.
+
+## Contributors ##
+
+- Ilias Van Peer - mail@zwilias.io
+- Geert Van Damme
 
 ## License ##
 
