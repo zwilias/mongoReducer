@@ -148,7 +148,7 @@ var initPoller = function () {
                     db.mapreduce.log.insert(logObj);
                 }
                 if (level >= this.loglevel.console) {
-                    print(ts + "\t" + this.pid.toString() + "\t" + message);
+                    chatty(ts + "\t" + this.pid.toString() + "\t" + message);
                 }
             }
         },
@@ -815,7 +815,7 @@ var start = function() {
 
 var setup = function() {
     // insert initPoller, initMapReducer and start() into the db
-    print("Saving initPoller(), initMapReducer() and start() in system.js.");
+    chatty("Saving initPoller(), initMapReducer() and start() in system.js.");
     db.system.js.save({"_id": "initPoller", "value": initPoller});
     db.system.js.save({"_id": "initMapReducer", "value": initMapReducer});
     db.system.js.save({"_id": "start", "value": start});
