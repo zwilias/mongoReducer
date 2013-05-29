@@ -14,7 +14,7 @@
  *     "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  *     KIND, either express or implied.  See the License for the
  *     specific language governing permissions and limitations
- *     under the License. 
+ *     under the License.
  */
 
 /*global db, sleep, print, ObjectId, printjson, mapReduce, run, shouldRun, runAction, clearOut, tojsononeline */
@@ -136,7 +136,7 @@ var initPoller = function () {
          */
         log: function(level, message, data) {
             if (level >= this.loglevel.db || level >= this.loglevel.console) {
-                var ts = new Date().getTime(),
+                var ts = Date.now(),
                     logObj = {
                         timestamp:  ts,
                         pid:        this.pid,
@@ -358,7 +358,7 @@ var initMapReducer = function () {
          * @return {boolean}    True when this action should be executed, false if it should not.
          */
         shouldRun: function(action) {
-            var timestamp = new Date().getTime(),
+            var timestamp = Date.now(),
                 execute = false;
 
             if (action.hasOwnProperty("force") && action.force === true) {
@@ -723,7 +723,7 @@ var initMapReducer = function () {
             options = this.extractOptions(action);
             result = this.doMapReduce(action, options);
 
-            timestamp = new Date().getTime();
+            timestamp = Date.now();
             cleanResult = this.extractCleanResult(result);
             previous = this.generatePreviousObj(action, cleanResult, timestamp);
 
@@ -782,11 +782,11 @@ var initMapReducer = function () {
          * @this {MapReducer}
          */
         exec: function() {
-            var start = new Date().getTime(),
+            var start = Date.now(),
                 end;
 
             this.execActions(db.mapreduce.find());
-            end = new Date().getTime();
+            end = Date.now();
             this.totalcount += this.counter;
             db.mapreduce.run.update({"_id": "unique"}, {"$set":
                 {
