@@ -225,7 +225,7 @@ var action = {
 
 So we define a new map-reduce action, which we call "dailyReqs". It should operate on the `accesslog` collection, run every 5 minutes (or 300.000 milliseconds). There's a timestamp value with key `parsed_at` which can be used to make this an incremental map-reduce action. The `map` function simply takes the `date` field, turns it into an epoch, and uses this as a key to emit '1'. This way, our `reduce` function can be a simple `Array.sum(values)`, making it idempotent.
 
-Now, as a special little extra, we define a `pre`-processing function. And we make it run the `parseCollection` function we previously defined, to make sure all the values in the `accesslog` collection are defined when we execute our `mapreduce` command.
+Now, as a special little extra, we define a `pre`-processing functio, and we make it execute the `parseCollection` function we previously defined, to make sure all the values in the `accesslog` collection are defined when we execute our `mapreduce` command. As the parser, we pass it `db.parsers.findOne{...}` so that we can update the parser definition while the map-reduce Poller loop is running.
 
 Let's test it, to make sure it works:
 

@@ -1,4 +1,4 @@
-/**
+/*
  *     Licensed to the Apache Software Foundation (ASF) under one
  *     or more contributor license agreements.  See the NOTICE file
  *     distributed with this work for additional information
@@ -455,7 +455,8 @@ var initMapReducer = function () {
         /**
          * Extracts an options contained in the action object.
          *
-         * Currently, this is limited to "jsMode", "verbose", "scope", "finalize", "sort" and "limit", which are passed through unmodified to the mapreduce command.
+         * Currently, this is limited to "jsMode", "verbose", "scope", "finalize", "sort" and "limit",
+         * which are passed through unmodified to the mapreduce command.
          *
          * @this {MapReducer}
          * @param {object} action
