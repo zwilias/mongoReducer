@@ -572,7 +572,10 @@ var initMapReducer = function () {
         doPreprocessing: function(action) {
             if (action.hasOwnProperty("pre") && typeof (action.pre) === "function") {
                 Poller.debug("Applying pre-processing function");
-                action.pre.apply(action);
+                var result = action.pre.apply(action);
+                if (result !== undefined) {
+                    Poller.info("Preprocessing returned data", {action: action, result: result});
+                }
             }
         },
 
@@ -585,7 +588,10 @@ var initMapReducer = function () {
         doPostprocessing: function(action) {
             if (action.hasOwnProperty("post") && typeof (action.post) === "function") {
                 Poller.debug("Applying post-processing function");
-                action.post.apply(action);
+                var result = action.post.apply(action);
+                if (result !== undefined) {
+                    Poller.info("Postprocessing returned data", {action: action, result: result});
+                }
             }
         },
 
