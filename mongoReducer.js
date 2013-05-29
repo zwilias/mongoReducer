@@ -62,7 +62,10 @@ var initPoller = function () {
         this.pid = new ObjectId();
         this.running = false;
         this.interval = false;  // getConfig() will replace this with the actual interval
-        this.loglevel = false;  // getconfig will replace this with the actual desired loglevels
+        this.loglevel = {
+                            db: _Poller.loglevels.DEBUG,
+                            console: _Poller.loglevels.INFO
+                        };  // getconfig will replace this with the actual desired loglevels
     }
 
     /**
