@@ -814,11 +814,23 @@ var initMapReducer = function () {
     mapReducer = new MapReducer();
 };
 
+var ensureLogCollection = function() {
+    if (db.system.namespaces.find({name: /mapreduce\.log$/}).count() == 0) {
+        db.createCollection("mapreduce.log", {capped: true, size: 104857600}); // create a 100MB capped collection
+        Poller.info("Creating db.mapreduce.log as a capped collection, default: 100MB.");
+    }
+
+    if (!db.mapreduce.log.isCapped()) {
+        Poller.warning("db.mapreduce.log is an uncapped collection. Consider capping it!");
+    }
+}
+
 var start = function() {
     if (typeof (mapReducer) === "undefined" || typeof (Poller) === "undefined") {
         initMapReducer();
     }
 
+    ensureLogCollection();
     Poller.start(mapReducer.exec, mapReducer);
 };
 
