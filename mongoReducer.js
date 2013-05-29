@@ -215,8 +215,6 @@ var initPoller = function () {
          */
         start: function(body, scope) {
             this.getConfig();
-
-            this.pid = new ObjectId();
             this.running = true;
 
             db.mapreduce.run.save(
