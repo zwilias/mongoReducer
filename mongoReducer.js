@@ -33,7 +33,7 @@
  * Convenience function that defines a constructor, static properties and instance methods for the _Poller class
  * and releases a Poller instance into the global namespace
  */
-var initPoller = function () {
+var initPoller = function (namespace) {
 
     /**
      * Creates an instance of the _Poller class.
@@ -58,7 +58,8 @@ var initPoller = function () {
      * @constructor
      * @this {_Poller}
      */
-    function _Poller() {
+    function _Poller(namespace) {
+        this.namespace = namespace;
         this.pid = new ObjectId();
         this.running = false;
         this.interval = false;  // getConfig() will replace this with the actual interval
@@ -116,12 +117,12 @@ var initPoller = function () {
                 };
 
             for (key in config) {
-                value = db.mapreduce.settings.findOne({_id: key});
+                value = db[this.namespace].settings.findOne({_id: key});
 
                 if (value !== null) {
                     config[key] = value.value;
                 } else {
-                    db.mapreduce.settings.insert({_id: key, value: config[key]});
+                    db[this.namespace].settings.insert({_id: key, value: config[key]});
                 }
             }
 
@@ -148,10 +149,10 @@ var initPoller = function () {
                         data:       data
                     };
                 if (level >= this.loglevel.db) {
-                    db.mapreduce.log.insert(logObj);
+                    db[this.namespace].log.insert(logObj);
                 }
                 if (level >= this.loglevel.console) {
-                    chatty(ts + "\t" + this.pid.toString() + "\t" + message);
+                    chatty(ts + "\t" + this.pid.str + "\t" + message);
                 }
             }
         },
@@ -226,16 +227,16 @@ var initPoller = function () {
 
             while (this.running) {
                 this.getConfig();
-                runningPid = db.mapreduce.run.findOne({"_id": "unique"});
+                runningPid = db[this.namespace].run.findOne({"_id": "unique"});
 
                 if (runningPid === null || !runningPid.hasOwnProperty("pid")) {
                     this.running = false;
                     this.info("Exiting, canceled");
-                } else if (this.pid.toString() !== runningPid.pid.toString()) {
+                } else if (this.pid.str !== runningPid.pid.str) {
                     this.running = false;
                     this.info("Exiting, new instance started");
                 } else {
-                    db.mapreduce.run.update({"_id": "unique"}, {"$set": {"status": "running"}});
+                    db[this.namespace].run.update({"_id": "unique"}, {"$set": {"status": "running"}});
 
                     try {
                         body.apply(scope);
@@ -247,6 +248,17 @@ var initPoller = function () {
                     sleep(this.interval);
                 }
             }
+        },
+
+        ensureLogCollection: function() {
+            if (db.system.namespaces.find({name: new RegExp(this.namespace + "\.log$")}).count() == 0) {
+                db.createCollection(this.namespace + ".log", {capped: true, size: 104857600}); // create a 100MB capped collection
+                Poller.info("Creating db." + this.namespace + ".log as a capped collection, default: 100MB.");
+            }
+
+            if (!db[this.namespace].log.isCapped()) {
+                Poller.warning("db." + this.namespace + ".log is an uncapped collection. Consider capping it!");
+            }
         }
     };
 
@@ -254,7 +266,8 @@ var initPoller = function () {
     // That way, extra functionality can be added by referring to _Poller.fn.
     Object.extend(_Poller.fn, _Poller.prototype);
     _Poller.prototype = _Poller.fn;
-    Poller = new _Poller(); // release it into the global namespace!
+    Poller = new _Poller(namespace); // release it into the global namespace!
+    Poller.ensureLogCollection(); // ensure we have a log collection
 };
 
 /**
@@ -265,7 +278,7 @@ var initPoller = function () {
  */
 var initMapReducer = function () {
     if (typeof (Poller) === "undefined") {
-        initPoller();
+        initPoller("mapreduce");
     }
 
     /**
@@ -815,23 +828,11 @@ var initMapReducer = function () {
     mapReducer = new MapReducer();
 };
 
-var ensureLogCollection = function() {
-    if (db.system.namespaces.find({name: /mapreduce\.log$/}).count() == 0) {
-        db.createCollection("mapreduce.log", {capped: true, size: 104857600}); // create a 100MB capped collection
-        Poller.info("Creating db.mapreduce.log as a capped collection, default: 100MB.");
-    }
-
-    if (!db.mapreduce.log.isCapped()) {
-        Poller.warning("db.mapreduce.log is an uncapped collection. Consider capping it!");
-    }
-}
-
 var start = function() {
     if (typeof (mapReducer) === "undefined" || typeof (Poller) === "undefined") {
         initMapReducer();
     }
 
-    ensureLogCollection();
     Poller.start(mapReducer.exec, mapReducer);
 };
 
