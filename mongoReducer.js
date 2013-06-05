@@ -478,9 +478,11 @@ var initMapReducer = function () {
         genContainedOptions: function(action) {
             var options = {},
                 possibleOptions = ["finalize", "sort", "limit", "scope", "verbose", "jsMode"],
-                option;
+                option,
+                i;
 
-            for (option in possibleOptions) {
+            for (i in possibleOptions) {
+                option = possibleOptions[i];
                 if (action.hasOwnProperty(option)) {
                     options[option] = action[option];
                 }
